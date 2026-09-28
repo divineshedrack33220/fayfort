@@ -162,27 +162,55 @@ export function openGoogleSignIn(
     }
     popup.close();
 
-    void fetch("/api/backend/oauth/google/code", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code,
-        codeVerifier: verifier,
-        nonce,
-        redirectUri: `${origin}${CALLBACK_PATH}`,
-      }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        const user = (body as { user?: { role?: string } } | null)?.user;
-        if (user?.role) exchangeHook?.(user.role);
-      })
-      .catch(() => {
-        // Session exchange failed; stay on the page.
-      });
+    void completeGoogleSignIn({
+      code,
+      codeVerifier: verifier,
+      nonce,
+      redirectUri: `${origin}${CALLBACK_PATH}`,
+    });
   }, 200);
 
   return true;
+}
+
+interface GoogleCodeExchangePayload {
+  code: string;
+  codeVerifier: string;
+  nonce: string;
+  redirectUri: string;
+}
+
+/**
+ * Exchanges the authorization code for a Fayfort session. The backend runs on
+ * Render's free tier, which sleeps after idle and can take a minute to wake —
+ * so 5xx / network failures on this first call are retried with backoff
+ * instead of silently leaving the visitor on the landing page.
+ */
+async function completeGoogleSignIn(payload: GoogleCodeExchangePayload): Promise<void> {
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch("/api/backend/oauth/google/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { user?: { role?: string } } | null;
+        if (body?.user?.role) exchangeHook?.(body.user.role);
+        return;
+      }
+      if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
+        // A hard error (4xx) will not be fixed by retrying.
+        return;
+      }
+    } catch {
+      // Network failure — the backend may still be waking up.
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 4000 * (attempt + 1)));
+    }
+  }
 }
 
 /**

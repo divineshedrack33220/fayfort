@@ -2,13 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { SESSION_COOKIE } from "@/lib/auth";
-import {
-  openGoogleSignIn,
-  googleRoleLanding,
-  type GsiUnavailable,
-} from "@/lib/google-auth";
+import { openGoogleSignIn, googleRoleLanding, type GsiUnavailable } from "@/lib/google-auth";
 import { SignInUnavailable } from "@/components/auth/sign-in-unavailable";
 
 /**
@@ -27,20 +22,17 @@ export function AuthActionLink({
   className?: string;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
   const signedIn = React.useSyncExternalStore(
     () => () => {},
     () => document.cookie,
     () => "",
   ).includes(`${SESSION_COOKIE}=`);
-  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(
-    null,
-  );
+  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(null);
 
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (signedIn) return;
     const started = openGoogleSignIn(
-      (role) => router.replace(googleRoleLanding(role, href)),
+      (role) => window.location.assign(googleRoleLanding(role, href)),
       (info) => setUnavailable(info),
     );
     if (started) event.preventDefault();

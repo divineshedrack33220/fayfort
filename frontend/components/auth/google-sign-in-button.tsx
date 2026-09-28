@@ -2,33 +2,27 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  openGoogleSignIn,
-  googleDestination,
-  type GsiUnavailable,
-} from "@/lib/google-auth";
+import { openGoogleSignIn, googleDestination, type GsiUnavailable } from "@/lib/google-auth";
 import { SignInUnavailable } from "@/components/auth/sign-in-unavailable";
 
 /**
  * Plain "Sign In" action for the marketing header. Clicking it opens the
  * Google account chooser, which either signs the person in or creates a
  * Fayfort account in one step — no signup forms anywhere. After auth the
- * account is routed by role (admins to the console, customers to `/apply` or
- * a safe `?next=` deep link). If no OAuth client id is configured the button
- * falls back to a link to the landing page.
+ * account is hard-navigated to the destination for its role (admins to the
+ * console, customers to their `/dashboard` or a safe `?next=` deep link) so
+ * the landing is always server-rendered with the fresh session. If no OAuth
+ * client id is configured the button falls back to a link to the landing
+ * page.
  */
 export function GoogleSignInButton({ className }: { className?: string }) {
-  const router = useRouter();
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(
-    null,
-  );
+  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(null);
 
   const handleClick = () => {
     openGoogleSignIn(
-      (role) => router.replace(googleDestination(role, "/apply")),
+      (role) => window.location.assign(googleDestination(role, "/dashboard")),
       (info) => setUnavailable(info),
     );
   };
@@ -40,11 +34,7 @@ export function GoogleSignInButton({ className }: { className?: string }) {
           Sign In
         </Link>
       ) : (
-        <button
-          type="button"
-          onClick={handleClick}
-          className={cn(signInClasses, className)}
-        >
+        <button type="button" onClick={handleClick} className={cn(signInClasses, className)}>
           Sign In
         </button>
       )}

@@ -145,6 +145,34 @@ describe("openGoogleSignIn", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("retries the exchange when the backend is cold-starting before routing", async () => {
+    const popup = openPopup();
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("backend is waking up"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ user: { role: "customer" } }),
+      });
+
+    const onSuccess = vi.fn();
+    expect(openGoogleSignIn(onSuccess)).toBe(true);
+
+    await vi.waitFor(() => {
+      const calls = (popup.location.assign as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+    });
+    const url = new URL(
+      (popup.location.assign as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string,
+    );
+    popup.location.href = callbackUrl(url.searchParams.get("state")!);
+
+    await vi.advanceTimersByTimeAsync(6000);
+
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledWith("customer"));
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("reports a blocked popup through onUnavailable", async () => {
     window.open = vi.fn(() => null) as unknown as typeof window.open;
 

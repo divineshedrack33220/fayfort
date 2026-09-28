@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SESSION_COOKIE } from "@/lib/auth";
-import {
-  openGoogleSignIn,
-  googleDestination,
-  type GsiUnavailable,
-} from "@/lib/google-auth";
+import { openGoogleSignIn, googleDestination, type GsiUnavailable } from "@/lib/google-auth";
 import { SignInUnavailable } from "@/components/auth/sign-in-unavailable";
 
 /**
@@ -25,9 +21,7 @@ export function GetStartedButton({ className }: { className?: string }) {
     () => document.cookie,
     () => "",
   ).includes(`${SESSION_COOKIE}=`);
-  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(
-    null,
-  );
+  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(null);
 
   const start = () => {
     if (signedIn) {
@@ -35,7 +29,7 @@ export function GetStartedButton({ className }: { className?: string }) {
       return;
     }
     const started = openGoogleSignIn(
-      (role) => router.replace(googleDestination(role, "/apply")),
+      (role) => window.location.assign(googleDestination(role, "/apply")),
       (info) => setUnavailable(info),
     );
     if (!started) router.push("/apply");
