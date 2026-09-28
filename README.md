@@ -350,7 +350,7 @@ sequenceDiagram
     N->>G: forward code + verifier + nonce
     G->>Goog: POST /token (code + client_secret + verifier)
     Goog-->>G: ID token
-    G->>G: validate aud, nonce, exp, iss; link/provision user
+    G->>G: validate aud, nonce, exp, iss (link or provision user)
     G-->>B: session cookie + user role
     B->>B: route by role (admin → /admin, customer → ?next=)
 ```
