@@ -48,7 +48,7 @@ func newTestServer(t *testing.T) (*Server, *store.DB, string) {
 		t.Fatalf("customer user: %v", err)
 	}
 	discard := log.New(io.Discard, "", 0)
-	return New(db, discard, ""), db, ""
+	return New(db, discard, "", ""), db, ""
 }
 
 func doJSON(t *testing.T, handler http.Handler, method, path string, body any, token string) (*httptest.ResponseRecorder, map[string]any) {

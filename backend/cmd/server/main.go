@@ -44,7 +44,7 @@ func main() {
 		must(err, format)
 	}
 
-	server := httpapi.New(db, format, os.Getenv("GOOGLE_CLIENT_ID"))
+	server := httpapi.New(db, format, os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"))
 	apiServer := &http.Server{
 		Addr:              *addr,
 		Handler:           server.Routes(),

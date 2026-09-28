@@ -37,24 +37,29 @@ type Server struct {
 	// Google ID tokens are rejected unless their audience matches it.
 	GoogleClientID string
 
+	// GoogleClientSecret is used server-side to exchange PKCE authorization
+	// codes for tokens. Never exposed to the browser.
+	GoogleClientSecret string
+
 	wsMu     sync.Mutex
 	wsTokens map[string]wsTokenEntry
 }
 
 // New builds a server with all routes registered.
-func New(s *store.DB, l *log.Logger, googleClientID string) *Server {
+func New(s *store.DB, l *log.Logger, googleClientID, googleClientSecret string) *Server {
 	sender, generated := push.NewSender(l)
 	if generated {
 		l.Printf("push: using an ephemeral VAPID keypair; set %s and %s so push keeps working across restarts",
 			push.EnvPublicKey, push.EnvPrivateKey)
 	}
 	srv := &Server{
-		Store:          s,
-		Log:            l,
-		Push:           push.NewDispatcher(sender, s, l),
-		hub:            newWSHub(),
-		wsTokens:       make(map[string]wsTokenEntry),
-		GoogleClientID: googleClientID,
+		Store:              s,
+		Log:                l,
+		Push:               push.NewDispatcher(sender, s, l),
+		hub:                newWSHub(),
+		wsTokens:           make(map[string]wsTokenEntry),
+		GoogleClientID:     googleClientID,
+		GoogleClientSecret: googleClientSecret,
 	}
 	go srv.pruneWSTokens()
 	return srv
@@ -86,6 +91,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("POST /api/oauth/google", s.handleGoogleOAuth)
+	mux.HandleFunc("POST /api/oauth/google/code", s.handleGoogleOAuthCode)
 	mux.HandleFunc("GET /api/me", s.requireAuth(s.handleMe))
 
 	// Web Push

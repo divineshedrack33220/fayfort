@@ -24,56 +24,39 @@ let unavailableHook: ((info: GsiUnavailable) => void) | null = null;
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const CALLBACK_PATH = "/auth/callback";
 const POPUP_NAME = "fayfort_google_auth";
+const POPUP_TIMEOUT_MS = 120_000;
 
-interface GsiCredentialResponse {
-  credential: string;
-  clientId: string;
-}
-
-function exchangeCredential(response: GsiCredentialResponse): void {
-  void fetch("/api/backend/oauth/google", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken: response.credential }),
-  })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((body) => {
-      const user = (body as { user?: { role?: string } } | null)?.user;
-      if (user?.role) exchangeHook?.(user.role);
-    })
-    .catch(() => {
-      // Session exchange failed; stay on the page.
-    });
-}
-
-function randomNonce(): string {
-  const bytes = new Uint8Array(16);
+function randomUrlSafe(count: number): string {
+  const bytes = new Uint8Array(count);
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     crypto.getRandomValues(bytes);
   } else {
     for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
   }
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  let binary = "";
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function decodeIdTokenPayload(idToken: string): Record<string, unknown> | null {
-  try {
-    const payload = idToken.split(".")[1] ?? "";
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const binary = atob(normalized);
-    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+async function pkceChallenge(verifier: string): Promise<string> {
+  const subtle = typeof crypto !== "undefined" ? crypto.subtle : undefined;
+  if (!subtle) return "";
+  const digest = await subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  let binary = "";
+  new Uint8Array(digest).forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /**
- * Opens the Google account chooser in a popup. The selected account either
- * logs an existing Fayfort user in or creates a new customer account in the
- * same step (no signup form anywhere). Once Google returns an id_token in the
- * popup's URL fragment, it is exchanged for a Fayfort session via the backend
- * proxy and `onSuccess(role)` is called.
+ * Opens the Google account chooser in a popup using the OAuth authorization
+ * code flow with PKCE. The browser only ever sees a short, single-use code in
+ * the popup URL (never an id_token — Chrome warns on URLs carrying long
+ * tokens); the code is exchanged for a Fayfort session through the backend
+ * proxy, then `onSuccess(role)` is called.
  *
  * Returned true when a flow was launched, or false when no OAuth client id is
  * configured. If the popup can't be opened, `onUnavailable` is called so the
@@ -101,16 +84,33 @@ export function openGoogleSignIn(
   }
 
   const origin = window.location.origin;
-  const nonce = randomNonce();
-  const params = new URLSearchParams({
-    client_id: id,
-    response_type: "id_token",
-    scope: "openid email profile",
-    redirect_uri: `${origin}${CALLBACK_PATH}`,
-    prompt: "select_account",
-    nonce,
-  });
-  popup.location.assign(`${AUTH_ENDPOINT}?${params.toString()}`);
+  const nonce = randomUrlSafe(16);
+  const state = randomUrlSafe(16);
+  const verifier = randomUrlSafe(32);
+
+  void (async () => {
+    const codeChallenge = await pkceChallenge(verifier);
+    if (!codeChallenge) {
+      popup.close();
+      unavailableHook?.({
+        reason: "crypto-unavailable",
+        origin,
+      });
+      return;
+    }
+    const params = new URLSearchParams({
+      client_id: id,
+      response_type: "code",
+      scope: "openid email profile",
+      redirect_uri: `${origin}${CALLBACK_PATH}`,
+      prompt: "select_account",
+      nonce,
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+    });
+    popup.location.assign(`${AUTH_ENDPOINT}?${params.toString()}`);
+  })();
 
   const started = Date.now();
   const timer = window.setInterval(() => {
@@ -118,43 +118,68 @@ export function openGoogleSignIn(
       window.clearInterval(timer);
       return;
     }
-    if (Date.now() - started > 120_000) {
+    if (Date.now() - started > POPUP_TIMEOUT_MS) {
       window.clearInterval(timer);
       popup.close();
       return;
     }
 
-    let hash = "";
+    let href = "";
     try {
-      hash = popup.location.hash;
+      href = popup.location.href;
     } catch {
       return; // still on accounts.google.com (cross-origin) — keep polling
     }
-    if (!hash) return;
+    let url: URL;
+    try {
+      url = new URL(href);
+    } catch {
+      return;
+    }
+    if (url.origin !== origin) return;
 
     window.clearInterval(timer);
-    const fragment = new URLSearchParams(hash.slice(1));
-    if (fragment.get("error") === "access_denied") {
+    const error = url.searchParams.get("error");
+    if (error) {
+      // Covers access_denied and any other error Google reports back.
       popup.close();
       return;
     }
-    const idToken = fragment.get("id_token");
-    if (idToken) {
-      const payload = decodeIdTokenPayload(idToken);
-      if (payload?.nonce !== nonce) {
-        // Stale fragment from a previous sign-in — ignore it.
-        popup.close();
-        return;
-      }
-      popup.close();
-      exchangeCredential({ credential: idToken, clientId: id });
-    } else {
+    const code = url.searchParams.get("code");
+    if (!code) {
       unavailableHook?.({
         reason: "unable-to-retrieve-token",
         origin,
       });
       popup.close();
+      return;
     }
+    // The state must match the one we sent, or this is a stale / forged
+    // callback and must not be exchanged.
+    if (url.searchParams.get("state") !== state) {
+      popup.close();
+      return;
+    }
+    popup.close();
+
+    void fetch("/api/backend/oauth/google/code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code,
+        codeVerifier: verifier,
+        nonce,
+        redirectUri: `${origin}${CALLBACK_PATH}`,
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        const user = (body as { user?: { role?: string } } | null)?.user;
+        if (user?.role) exchangeHook?.(user.role);
+      })
+      .catch(() => {
+        // Session exchange failed; stay on the page.
+      });
   }, 200);
 
   return true;
@@ -165,10 +190,7 @@ export function openGoogleSignIn(
  * always go to the console; customers resume a safe `?next=` deep link from
  * the current URL, otherwise `fallback`.
  */
-export function googleDestination(
-  role: string,
-  fallback: string,
-): string {
+export function googleDestination(role: string, fallback: string): string {
   if (role === "admin") return "/admin";
   if (typeof window !== "undefined") {
     const raw = new URLSearchParams(window.location.search).get("next");

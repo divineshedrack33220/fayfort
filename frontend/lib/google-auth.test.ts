@@ -1,19 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  googleDestination,
-  googleRoleLanding,
-  openGoogleSignIn,
-} from "@/lib/google-auth";
-
-function base64url(value: string): string {
-  return btoa(value).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function fakeIdToken(nonce: string): string {
-  const header = base64url(JSON.stringify({ alg: "none", typ: "JWT" }));
-  const payload = base64url(JSON.stringify({ nonce }));
-  return `${header}.${payload}.sig`;
-}
+import { googleDestination, googleRoleLanding, openGoogleSignIn } from "@/lib/google-auth";
 
 describe("googleDestination", () => {
   it("always routes admins to the console", () => {
@@ -43,11 +29,7 @@ describe("googleRoleLanding", () => {
   });
 
   it("uses the explicit destination, ignoring a leftover ?next=", () => {
-    window.history.replaceState(
-      null,
-      "",
-      "/about?next=/apply",
-    );
+    window.history.replaceState(null, "", "/about?next=/apply");
     expect(googleRoleLanding("customer", "/dashboard")).toBe("/dashboard");
   });
 });
@@ -73,60 +55,97 @@ describe("openGoogleSignIn", () => {
     delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   });
 
-  it("opens a popup with an id_token auth URL and routes the signed-in user", async () => {
+  function openPopup() {
     const popup = {
       closed: false,
-      location: { assign: vi.fn(), hash: "" },
+      location: { assign: vi.fn(), href: "about:blank" },
       close: vi.fn(() => {
         popup.closed = true;
       }),
     };
     window.open = vi.fn(() => popup) as unknown as typeof window.open;
+    return popup;
+  }
+
+  function callbackUrl(state: string): string {
+    return `${window.location.origin}/auth/callback?code=auth-code&state=${state}`;
+  }
+
+  it("opens a popup with a PKCE code URL and routes the signed-in user", async () => {
+    const popup = openPopup();
 
     const onSuccess = vi.fn();
     expect(openGoogleSignIn(onSuccess)).toBe(true);
 
-    const authUrl = (popup.location.assign as ReturnType<typeof vi.fn>).mock
-      .calls[0][0] as string;
-    const url = new URL(authUrl);
-    expect(url.origin + url.pathname).toBe(
-      "https://accounts.google.com/o/oauth2/v2/auth",
-    );
-    expect(url.searchParams.get("client_id")).toBe("test-client-id");
-    expect(url.searchParams.get("response_type")).toBe("id_token");
-    expect(url.searchParams.get("redirect_uri")).toBe(
-      `${window.location.origin}/auth/callback`,
-    );
-    const nonce = url.searchParams.get("nonce")!;
+    let authUrl = "";
+    await vi.waitFor(() => {
+      authUrl = (popup.location.assign as unknown as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as string;
+      expect(authUrl).toBeTruthy();
+    });
 
-    popup.location.hash = `#id_token=${fakeIdToken(nonce)}`;
+    const url = new URL(authUrl);
+    expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+    expect(url.searchParams.get("client_id")).toBe("test-client-id");
+    expect(url.searchParams.get("response_type")).toBe("code");
+    expect(url.searchParams.get("redirect_uri")).toBe(`${window.location.origin}/auth/callback`);
+    expect(url.searchParams.get("code_challenge")).toBeTruthy();
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(url.searchParams.get("nonce")).toBeTruthy();
+    const state = url.searchParams.get("state")!;
+
+    popup.location.href = callbackUrl(state);
     vi.advanceTimersByTime(400);
 
-    expect(popup.close).toHaveBeenCalled();
     await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledWith("customer"));
+    expect(popup.close).toHaveBeenCalled();
+
+    const [, body] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(body.body as string)).toMatchObject({
+      code: "auth-code",
+      codeVerifier: expect.stringMatching(/^[-_A-Za-z0-9]{20,}$/),
+      nonce: url.searchParams.get("nonce"),
+      redirectUri: `${window.location.origin}/auth/callback`,
+    });
   });
 
-  it("ignores a stale (mismatched nonce) token fragment", () => {
-    const popup = {
-      closed: false,
-      location: { assign: vi.fn(), hash: "" },
-      close: vi.fn(() => {
-        popup.closed = true;
-      }),
-    };
-    window.open = vi.fn(() => popup) as unknown as typeof window.open;
+  it("ignores a stale (mismatched state) callback", async () => {
+    const popup = openPopup();
 
     const onSuccess = vi.fn();
     openGoogleSignIn(onSuccess);
 
-    popup.location.hash = `#id_token=${fakeIdToken("not-the-nonce")}`;
+    await vi.waitFor(() => {
+      expect(popup.location.assign).toHaveBeenCalled();
+    });
+
+    popup.location.href = callbackUrl("wrong-state");
     vi.advanceTimersByTime(400);
 
     expect(popup.close).toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("reports a blocked popup through onUnavailable", () => {
+  it("ignores a Google error callback (e.g. access_denied)", async () => {
+    const popup = openPopup();
+
+    const onSuccess = vi.fn();
+    openGoogleSignIn(onSuccess);
+
+    await vi.waitFor(() => {
+      expect(popup.location.assign).toHaveBeenCalled();
+    });
+
+    popup.location.href = `${window.location.origin}/auth/callback?error=access_denied`;
+    vi.advanceTimersByTime(400);
+
+    expect(popup.close).toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("reports a blocked popup through onUnavailable", async () => {
     window.open = vi.fn(() => null) as unknown as typeof window.open;
 
     const onUnavailable = vi.fn();
