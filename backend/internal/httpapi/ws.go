@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -470,21 +471,37 @@ var wsUpgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	// Local dev only: the frontend runs on another port, so the origin will
-	// never match the backend host. Restrict to loopback hosts instead of
-	// accepting anything.
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		if origin == "" {
+	// never match the backend host. Loopback hosts are always allowed, plus
+	// any origin in WS_ALLOWED_ORIGINS (the deployed web app) is trusted so
+	// browser sockets actually connect in production.
+	CheckOrigin: wsOriginAllowed,
+}
+
+// EnvWSAllowedOrigins lists comma-separated origins (scheme://host[:port])
+// the WebSocket upgrade accepts in addition to loopback hosts. Set it to the
+// deployed frontend URL so browser sockets connect cross-origin in production.
+const EnvWSAllowedOrigins = "WS_ALLOWED_ORIGINS"
+
+func wsOriginAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" || host == "127.0.0.1" ||
+		host == "0.0.0.0" || host == "::1" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	for _, allowed := range strings.Split(os.Getenv(EnvWSAllowedOrigins), ",") {
+		if allowed = strings.TrimSpace(allowed); allowed != "" && (allowed == origin || allowed == host) {
 			return true
 		}
-		u, err := url.Parse(origin)
-		if err != nil {
-			return false
-		}
-		host := u.Hostname()
-		return host == "localhost" || host == "127.0.0.1" ||
-			host == "0.0.0.0" || host == "::1" || strings.HasSuffix(host, ".localhost")
-	},
+	}
+	return false
 }
 
 // wsTokenEntry is a short-lived, single-use credential minted for browser

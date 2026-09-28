@@ -1332,3 +1332,33 @@ func TestCallRingExpiresAndClearsForBothSides(t *testing.T) {
 		t.Fatal("expired ring should be dropped from the hub")
 	}
 }
+
+func TestWSOriginAllowed(t *testing.T) {
+	cases := []struct {
+		name   string
+		origin string
+		env    string
+		want   bool
+	}{
+		{"no origin", "", "", true},
+		{"localhost", "http://localhost:3100", "", true},
+		{"loopback", "https://127.0.0.1:3100", "", true},
+		{"ipv6 loopback", "http://[::1]:3100", "", true},
+		{"web origin denied by default", "https://fayfort-web.onrender.com", "", false},
+		{"web origin allowed via env", "https://fayfort-web.onrender.com", "https://fayfort-web.onrender.com", true},
+		{"host match via env", "https://fayfort-web.onrender.com", "fayfort-web.onrender.com", true},
+		{"extra origins ignored list", "https://evil.example.com", "https://fayfort-web.onrender.com", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(EnvWSAllowedOrigins, tc.env)
+			r := httptest.NewRequest(http.MethodGet, "/api/ws", nil)
+			if tc.origin != "" {
+				r.Header.Set("Origin", tc.origin)
+			}
+			if got := wsOriginAllowed(r); got != tc.want {
+				t.Fatalf("wsOriginAllowed(origin=%q, env=%q) = %v, want %v", tc.origin, tc.env, got, tc.want)
+			}
+		})
+	}
+}
