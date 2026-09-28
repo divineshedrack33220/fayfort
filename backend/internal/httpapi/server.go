@@ -147,6 +147,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/admin/activity", s.requireAdmin(s.handleActivity))
 	mux.HandleFunc("GET /api/admin/search", s.requireAdmin(s.handleSearch))
 	mux.HandleFunc("GET /api/admin/settings", s.requireAdmin(s.handleSettings))
+	mux.HandleFunc("POST /api/admin/demo/load", s.requireAdmin(s.handleDemoLoad))
+	mux.HandleFunc("POST /api/admin/demo/reset", s.requireAdmin(s.handleDemoReset))
 
 	return s.withRecover(logMiddleware(mux))
 }

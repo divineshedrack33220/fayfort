@@ -117,8 +117,8 @@ The frontend surface has three audiences:
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, pnpm |
-| Backend | Go 1.22, stdlib `net/http` (Go 1.22 routing patterns) |
-| Database | SQLite via `modernc.org/sqlite` (pure Go, no cgo), single file |
+| Backend | Go 1.24, stdlib `net/http` (Go 1.22+ routing patterns) |
+| Database | SQLite via `modernc.org/sqlite` locally; **Turso Cloud** (`turso.tech/database/tursogo-serverless`, pure-Go HTTP driver) in production |
 | Realtime | `gorilla/websocket` hub (typing, message wake-ups, call signalling) |
 | Media calls | LiveKit (client SDK + server-sdk token minting) |
 | Auth | Google OAuth (authorization-code + PKCE), session tokens in cookies |
@@ -156,7 +156,7 @@ flowchart LR
         API --> PUSH
     end
 
-    DB[(SQLite file)]
+    DB[(Turso Cloud / local SQLite)]
     LK[LiveKit cloud]
     GOOGLE[Google OAuth]
     PUSHSVC[Push service<br/>FCM / Mozilla]
@@ -182,8 +182,9 @@ Key details:
 - **The proxy preserves the auth boundary.** Client components call
   `/api/backend/…`; the route handler forwards to the Go service and relays the
   backend's `Set-Cookie` so the session cookie stays an opaque HttpOnly token.
-- **Business data, sessions and push subscriptions live in one SQLite file** on
-  the backend's disk.
+- **Business data, sessions and push subscriptions live in one database**: a
+  Turso Cloud database in production (durable across restarts/deploys), a
+  SQLite file locally.
 
 ---
 
@@ -232,10 +233,11 @@ fayfort/
 
 ## Data model
 
-Single-file SQLite schema (defined in `backend/internal/store/db.go`). The
-entities mirror the status vocabulary in `backend/internal/domain/models.go`,
-which is kept byte-for-byte in sync with the frontend constants so clients and
-server never disagree on IDs or statuses.
+The one schema is defined in `backend/internal/store/db.go` and runs
+identically on the local SQLite file and on a Turso Cloud database (the SQL is
+standard SQLite-compatible). It mirrors the status vocabulary in
+`backend/internal/domain/models.go`, which is kept byte-for-byte in sync with
+the frontend constants so clients and server never disagree on IDs or statuses.
 
 | Entity | Stores | Notable relationships |
 |--------|--------|----------------------|
@@ -603,6 +605,8 @@ All JSON. Sessions arrive as the `fayfort_session` cookie or
 | `POST` | `/api/admin/messages/{id}/read` | mark thread read |
 | `GET` | `/api/admin/notifications` | feed + mark read |
 | `GET` | `/api/admin/analytics` / `activity` / `search?q=` / `settings` | derived views |
+| `POST` | `/api/admin/demo/load` | add the reference demo dataset (idempotent, non-destructive) |
+| `POST` | `/api/admin/demo/reset?seed=true` | wipe all business data, optionally reseed demo |
 
 ### Realtime & push
 
@@ -629,6 +633,8 @@ All JSON. Sessions arrive as the `fayfort_session` cookie or
 | `FAYFORT_VAPID_SUBJECT` | `mailto:support@fayfort.com` | push service contact |
 | `FAYFORT_PUSH_TIMEOUT` | `10s` | per-attempt push HTTP timeout |
 | `WS_ALLOWED_ORIGINS` | deployed frontend | extra WebSocket origins (comma-separated) |
+| `TURSO_DATABASE_URL` | — | Turso Cloud database URL (turns on durable remote storage) |
+| `TURSO_AUTH_TOKEN` | — | Turso bearer token; **required** when `TURSO_DATABASE_URL` is set |
 
 ### Frontend (`frontend/.env.local`, server-side unless prefixed `NEXT_PUBLIC_`)
 
@@ -644,7 +650,7 @@ All JSON. Sessions arrive as the `fayfort_session` cookie or
 
 ## Getting started (local development)
 
-Prerequisites: Go 1.22+, Node 22+, pnpm.
+Prerequisites: Go 1.24+, Node 22+, pnpm.
 
 **1. Backend** — run from `backend/`:
 
@@ -716,12 +722,46 @@ Both services are containerised and deployed to Render (two services, one
 GitHub repo).
 
 **Backend** (`backend/Dockerfile`): builds a static Go binary, runs as a
-non-root user, persists SQLite at `/data/fayfort.db`. Health check:
+non-root user, falls back to SQLite at `/data/fayfort.db`. Health check:
 `/api/health`.
 
 **Frontend** (`frontend/Dockerfile`): installs deps, builds with
 `NEXT_PUBLIC_GOOGLE_CLIENT_ID`/`NEXT_PUBLIC_APP_URL` build args, runs
 `pnpm start` on `:3000`.
+
+### Durable data (recommended for production)
+
+The backend keeps **all real data in a Turso Cloud database**, not on the
+container's disk. A free-tier Render instance is restarted and redeployed
+constantly, and its ephemeral filesystem is wiped each time — any SQLite file
+stored there is lost. Pointing the backend at Turso means requests, quotes,
+orders, threads and notifications survive restarts and deploys.
+
+1. Create a Turso database, e.g. `turso db create fayfort-prod`.
+2. Generate a long-lived token: `turso db tokens create fayfort-prod`.
+3. Set `TURSO_DATABASE_URL=<libsql URL>` and `TURSO_AUTH_TOKEN=<token>` in the
+   backend service's environment.
+4. Deploy. On first boot the backend applies the schema and seeds the two
+   accounts; everything afterwards is durable.
+
+Without those variables the backend gracefully falls back to the local SQLite
+file, which is fine for development but resets whenever the instance restarts.
+
+### Demo data ("playing the data")
+
+Production boots on an empty dataset — only the demo accounts are seeded. To
+replay the reference dataset without touching real records, admin-only actions
+sit on the backend (and in **Console → Settings → Demo data**):
+
+- `POST /api/admin/demo/load` — adds the demo dataset to any table that is
+  empty (idempotent, non-destructive; real data is never touched).
+- `POST /api/admin/demo/reset?seed=true` — deliberately wipes every business
+  table (customers, requests, quotes, orders, shipments, threads,
+  notifications) and optionally reloads the demo dataset. Accounts and sessions
+  are kept, so nobody is logged out.
+
+There is no automatic seeding: demo data appears only when these actions are
+called explicitly.
 
 Production settings that matter:
 
@@ -730,9 +770,9 @@ Production settings that matter:
   rejected by default for non-loopback hosts).
 - **LiveKit credentials** on the frontend for calls; Google OAuth client + the
   authorization callback origin; `BACKEND_URL` pointing at the backend host.
-- Each deploy/restart creates a fresh SQLite file on the free tier's ephemeral
-  disk, so push subscriptions re-register when a device visits again and are
-  keyed to the stable VAPID pair.
+- Push subscriptions are keyed to the stable VAPID pair, so they keep matching
+  across restarts (local-development ephemeral keys just re-subscribe on the
+  next visit).
 - Serve over HTTPS everywhere: `Notification` permission and PWA/push only work
   in secure contexts.
 
@@ -754,5 +794,8 @@ Production settings that matter:
 - Chat is authorised **per-thread**: staff may access threads they can see;
   customers only their own thread, and the LiveKit token route enforces the
   same boundary for calls.
+- The demo-data actions (`load` / `reset`) are **admin-only**, and the reset is
+  explicitly destructive (wipe + optional reseed) so real data is never removed
+  implicitly.
 - Deferred hardening — rate limiting on login/register, 2FA, honeypot on
   registration — is designed to land in the Go service.

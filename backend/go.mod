@@ -1,18 +1,19 @@
 module fayfort/backend
 
-go 1.22
+go 1.24.0
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.2.0
+	github.com/gorilla/websocket v1.5.3
 	golang.org/x/crypto v0.31.0
 	modernc.org/sqlite v1.34.4
+	turso.tech/database/tursogo-serverless v0.0.0-20260928194253-15800dd272e3
 )
 
 require (
-	github.com/SherClockHolmes/webpush-go v1.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect

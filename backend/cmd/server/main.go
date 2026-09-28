@@ -7,6 +7,11 @@
 // By default the service boots on an empty dataset so the console shows only
 // real records; pass -seed to load the demo dataset (skip-if-populated). The
 // admin@fayfort.com / admin123 account is always available.
+//
+// Storage: when TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set, the service
+// stores everything in a Turso Cloud (SQLite-compatible) database over HTTP,
+// so real data survives restarts and deploys. Otherwise it falls back to the
+// local SQLite file given by -db.
 package main
 
 import (
@@ -15,6 +20,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"fayfort/backend/internal/auth"
@@ -32,7 +38,21 @@ func main() {
 	_ = discard
 	format := log.New(os.Stderr, "[fayfort-backend] ", log.LstdFlags)
 
-	db, err := store.Open(*dbPath)
+	var (
+		db       *store.DB
+		err      error
+		dbSource = *dbPath
+	)
+	if url := strings.TrimSpace(os.Getenv("TURSO_DATABASE_URL")); url != "" {
+		token := strings.TrimSpace(os.Getenv("TURSO_AUTH_TOKEN"))
+		if token == "" {
+			must(errors.New("TURSO_AUTH_TOKEN must be set when TURSO_DATABASE_URL is set"), format)
+		}
+		db, err = store.OpenRemote(url, token)
+		dbSource = "turso:// (remote)" // never log the URL or token
+	} else {
+		db, err = store.Open(*dbPath)
+	}
 	must(err, format)
 
 	if *seedDemo {
@@ -51,7 +71,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	format.Printf("fayfort backend listening on %s (db: %s)", *addr, *dbPath)
+	format.Printf("fayfort backend listening on %s (db: %s)", *addr, dbSource)
 	if err := apiServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		must(err, format)
 	}

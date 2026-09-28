@@ -18,13 +18,22 @@ Flags:
 - `-addr` — listen address (default `:8080`)
 - `-db` — SQLite file (default `./fayfort.db`; use `:memory:` for ephemeral)
 
-On first boot the demo dataset is seeded (idempotent, per-table skip) and two
-accounts are created:
+When `TURSO_DATABASE_URL` (and `TURSO_AUTH_TOKEN`) are set, the service stores
+everything in a Turso Cloud database over HTTP instead — durable across
+restarts and deploys, which is what the production deployment uses.
+
+On first boot the demo dataset is seeded only when `-seed` is passed
+(idempotent, per-table skip); `seedAccounts` always provisions two accounts:
 
 | Account             | Email                 | Password  | Role     | Linked demo identity |
 |---------------------|-----------------------|-----------|----------|----------------------|
 | Admin               | `admin@fayfort.com`   | `admin123`| admin    | Ada Okafor (STF-001) |
 | Demo customer       | `demo@example.com`    | `demo1234`| customer | David Green (C-002)  |
+
+Admin demo-data actions (see root README "Demo data"):
+
+- `POST /api/admin/demo/load` — add the reference dataset, non-destructive.
+- `POST /api/admin/demo/reset?seed=true` — wipe business data, optionally reseed.
 
 ## Test / lint
 

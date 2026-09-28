@@ -56,3 +56,5 @@ modernc.org/strutil v1.2.0 h1:agBi9dp1I+eOnxXeiZawM8F4LawKv4NzGWSaLfyeNZA=
 modernc.org/strutil v1.2.0/go.mod h1:/mdcBmfOibveCTBxUl5B5l6W+TTH1FXPLHZE6bTosX0=
 modernc.org/token v1.1.0 h1:Xl7Ap9dKaEs5kLoOQeQmPWevfnk/DM5qcLcYlA8ys6Y=
 modernc.org/token v1.1.0/go.mod h1:UGzOrNV1mAFSEB63lOFHIpNRUVMvYTc6yu1SMY/XTDM=
+turso.tech/database/tursogo-serverless v0.0.0-20260928194253-15800dd272e3 h1:/vPu60lG3nF+aDCWpNSAW+wsK8UFa5d02WWamC0gCQE=
+turso.tech/database/tursogo-serverless v0.0.0-20260928194253-15800dd272e3/go.mod h1:KWrz0BzLKiXUkLmM5HXyr/gWA8ySNZexfW0NV0GGk0A=

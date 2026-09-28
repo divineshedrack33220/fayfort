@@ -9,6 +9,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	turso "turso.tech/database/tursogo-serverless"
 )
 
 const schema = `
@@ -204,17 +206,34 @@ func Open(path string) (*DB, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	if _, err := conn.Exec(schema); err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-	// Idempotent migration for database files created before the decision
-	// columns existed (fresh :memory: databases already include them).
-	if err := migrateQuotes(conn); err != nil {
+	if err := applySchema(conn); err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
 	return &DB{conn}, nil
+}
+
+// OpenRemote connects to a Turso Cloud database over HTTP via the
+// turso-serverless database/sql driver. The same schema is applied
+// idempotently, so a fresh remote database is ready on first boot and data
+// survives backend restarts and deploys (the container writes nothing).
+func OpenRemote(url, authToken string) (*DB, error) {
+	conn := sql.OpenDB(turso.NewConnector(url, authToken))
+	conn.SetMaxOpenConns(8)
+	if err := applySchema(conn); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return &DB{conn}, nil
+}
+
+func applySchema(conn *sql.DB) error {
+	if _, err := conn.Exec(schema); err != nil {
+		return err
+	}
+	// Idempotent migration for database files created before the decision
+	// columns existed (fresh databases already include them).
+	return migrateQuotes(conn)
 }
 
 // migrateQuotes ensures the quotes table carries the customer decision columns,
@@ -252,6 +271,49 @@ func migrateQuotes(conn *sql.DB) error {
 
 // ErrNotFound is returned when a lookup matches nothing.
 var ErrNotFound = errors.New("store: not found")
+
+// businessTables are the user-visible datasets the admin demo-data actions
+// load and wipe. Accounts (users) and sessions are intentionally excluded so a
+// reset never logs people out, and push subscriptions are excluded so devices
+// that already granted notification permission stay registered.
+var businessTables = []string{
+	"inspections",
+	"orders",
+	"quotes",
+	"shipments",
+	"sourcing_requests",
+	"threads",
+	"admin_notifications",
+	"customer_notifications",
+	"activity",
+	"customers",
+	"suppliers",
+	"contact_messages",
+}
+
+// TableCount returns the number of rows in a table (for demo-data reporting).
+func (db *DB) TableCount(table string) (int64, error) {
+	var n int64
+	err := db.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n)
+	return n, err
+}
+
+// ResetDemoData deletes every business row (returning per-table deleted
+// counts) while keeping accounts, sessions and push subscriptions intact. It
+// is the explicit "wipe the data" action; call SeedDemo afterwards to replay
+// the reference dataset.
+func (db *DB) ResetDemoData() (map[string]int64, error) {
+	deleted := make(map[string]int64, len(businessTables))
+	for _, table := range businessTables {
+		res, err := db.Exec(`DELETE FROM ` + table)
+		if err != nil {
+			return deleted, err
+		}
+		n, _ := res.RowsAffected()
+		deleted[table] = n
+	}
+	return deleted, nil
+}
 
 // ---- users + sessions -----------------------------------------------------
 
