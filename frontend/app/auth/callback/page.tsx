@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthCallbackBridge } from "@/components/auth/auth-callback-bridge";
 
 export const metadata: Metadata = {
   title: "Signing you in",
@@ -6,17 +7,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Interstitial for the Google popup sign-in flow. The id_token is delivered
- * in the URL fragment and read by the opener window (lib/google-auth.ts)
- * before this page ever paints; this page only exists so the popup has a
- * same-origin, non-404 destination.
+ * Interstitial for the Google popup sign-in flow. Google redirects here with
+ * a short-lived code + state; {@link AuthCallbackBridge} forwards them to the
+ * opener over postMessage and closes the popup. This page only exists so the
+ * popup has a same-origin, non-404 destination.
  */
 export default function AuthCallbackPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-brand-950 px-6">
-      <p className="text-sm text-brand-200">
+    <main className="bg-brand-950 flex min-h-screen items-center justify-center px-6">
+      <p className="text-brand-200 text-sm">
         Signing you in to Fayfort… you can close this window.
       </p>
+      <AuthCallbackBridge />
     </main>
   );
 }

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { googleDestination, googleRoleLanding, openGoogleSignIn } from "@/lib/google-auth";
 
+function postAuthMessage(data: Record<string, string>): void {
+  window.dispatchEvent(new MessageEvent("message", { data, origin: window.location.origin }));
+}
+
 describe("googleDestination", () => {
   it("always routes admins to the console", () => {
     window.history.replaceState(null, "", "/dashboard?next=/apply");
@@ -14,7 +18,7 @@ describe("googleDestination", () => {
 
   it("rejects external next targets", () => {
     window.history.replaceState(null, "", "/?next=//evil.example");
-    expect(googleDestination("customer", "/apply")).toBe("/apply");
+    expect(googleDestination("customer", "/dashboard")).toBe("/dashboard");
   });
 
   it("falls back when there is no next param", () => {
@@ -41,10 +45,17 @@ describe("openGoogleSignIn", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "test-client-id";
     vi.useFakeTimers();
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ user: { role: "customer" } }),
-    });
+    globalThis.fetch = vi.fn((input: RequestInfo | URL) => {
+      const href = String(input);
+      if (href.includes("/oauth/google/code")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ user: { role: "customer" } }),
+        });
+      }
+      // warm-up health ping
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+    }) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -58,7 +69,7 @@ describe("openGoogleSignIn", () => {
   function openPopup() {
     const popup = {
       closed: false,
-      location: { assign: vi.fn(), href: "about:blank" },
+      location: { assign: vi.fn() },
       close: vi.fn(() => {
         popup.closed = true;
       }),
@@ -67,8 +78,20 @@ describe("openGoogleSignIn", () => {
     return popup;
   }
 
-  function callbackUrl(state: string): string {
-    return `${window.location.origin}/auth/callback?code=auth-code&state=${state}`;
+  function exchangeCalls() {
+    return (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) => String(call[0]).includes("/oauth/google/code"),
+    );
+  }
+
+  async function assignedUrlOf(popup: { location: { assign: ReturnType<typeof vi.fn> } }) {
+    let authUrl = "";
+    await vi.waitFor(() => {
+      const url = popup.location.assign.mock.calls[0]?.[0] as string | undefined;
+      expect(url).toBeTruthy();
+      authUrl = url ?? "";
+    });
+    return new URL(authUrl);
   }
 
   it("opens a popup with a PKCE code URL and routes the signed-in user", async () => {
@@ -77,14 +100,7 @@ describe("openGoogleSignIn", () => {
     const onSuccess = vi.fn();
     expect(openGoogleSignIn(onSuccess)).toBe(true);
 
-    let authUrl = "";
-    await vi.waitFor(() => {
-      authUrl = (popup.location.assign as unknown as ReturnType<typeof vi.fn>).mock
-        .calls[0][0] as string;
-      expect(authUrl).toBeTruthy();
-    });
-
-    const url = new URL(authUrl);
+    const url = await assignedUrlOf(popup);
     expect(url.origin + url.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
     expect(url.searchParams.get("client_id")).toBe("test-client-id");
     expect(url.searchParams.get("response_type")).toBe("code");
@@ -92,16 +108,20 @@ describe("openGoogleSignIn", () => {
     expect(url.searchParams.get("code_challenge")).toBeTruthy();
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("nonce")).toBeTruthy();
-    const state = url.searchParams.get("state")!;
 
-    popup.location.href = callbackUrl(state);
-    vi.advanceTimersByTime(400);
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      code: "auth-code",
+      state: url.searchParams.get("state")!,
+    });
 
     await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledWith("customer"));
     expect(popup.close).toHaveBeenCalled();
 
-    const [, body] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(JSON.parse(body.body as string)).toMatchObject({
+    const calls = exchangeCalls();
+    expect(calls).toHaveLength(1);
+    const [, init] = calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
       code: "auth-code",
       codeVerifier: expect.stringMatching(/^[-_A-Za-z0-9]{20,}$/),
       nonce: url.searchParams.get("nonce"),
@@ -114,17 +134,30 @@ describe("openGoogleSignIn", () => {
 
     const onSuccess = vi.fn();
     openGoogleSignIn(onSuccess);
+    await assignedUrlOf(popup);
 
-    await vi.waitFor(() => {
-      expect(popup.location.assign).toHaveBeenCalled();
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      code: "auth-code",
+      state: "wrong-state",
     });
-
-    popup.location.href = callbackUrl("wrong-state");
-    vi.advanceTimersByTime(400);
 
     expect(popup.close).toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(exchangeCalls()).toHaveLength(0);
+  });
+
+  it("ignores a callback from a non-matching source", async () => {
+    const popup = openPopup();
+
+    const onSuccess = vi.fn();
+    openGoogleSignIn(onSuccess);
+    await assignedUrlOf(popup);
+
+    postAuthMessage({ source: "someone-else", code: "auth-code", state: "x" });
+
+    expect(popup.close).not.toHaveBeenCalled();
+    expect(exchangeCalls()).toHaveLength(0);
   });
 
   it("ignores a Google error callback (e.g. access_denied)", async () => {
@@ -132,45 +165,51 @@ describe("openGoogleSignIn", () => {
 
     const onSuccess = vi.fn();
     openGoogleSignIn(onSuccess);
+    await assignedUrlOf(popup);
 
-    await vi.waitFor(() => {
-      expect(popup.location.assign).toHaveBeenCalled();
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      error: "access_denied",
     });
-
-    popup.location.href = `${window.location.origin}/auth/callback?error=access_denied`;
-    vi.advanceTimersByTime(400);
 
     expect(popup.close).toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(exchangeCalls()).toHaveLength(0);
   });
 
   it("retries the exchange when the backend is cold-starting before routing", async () => {
     const popup = openPopup();
-    globalThis.fetch = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("backend is waking up"))
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ user: { role: "customer" } }),
-      });
+
+    let exchangeAttempt = 0;
+    globalThis.fetch = vi.fn((input: RequestInfo | URL) => {
+      const href = String(input);
+      if (href.includes("/oauth/google/code")) {
+        exchangeAttempt += 1;
+        if (exchangeAttempt === 1) {
+          return Promise.reject(new Error("backend is waking up"));
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ user: { role: "customer" } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+    }) as unknown as typeof fetch;
 
     const onSuccess = vi.fn();
     expect(openGoogleSignIn(onSuccess)).toBe(true);
+    const url = await assignedUrlOf(popup);
 
-    await vi.waitFor(() => {
-      const calls = (popup.location.assign as unknown as ReturnType<typeof vi.fn>).mock.calls;
-      expect(calls.length).toBeGreaterThan(0);
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      code: "auth-code",
+      state: url.searchParams.get("state")!,
     });
-    const url = new URL(
-      (popup.location.assign as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string,
-    );
-    popup.location.href = callbackUrl(url.searchParams.get("state")!);
 
-    await vi.advanceTimersByTimeAsync(6000);
+    await vi.advanceTimersByTimeAsync(11000);
 
     await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledWith("customer"));
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(exchangeCalls()).toHaveLength(2);
   });
 
   it("reports a blocked popup through onUnavailable", async () => {

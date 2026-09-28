@@ -25,6 +25,7 @@ const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
 const CALLBACK_PATH = "/auth/callback";
 const POPUP_NAME = "fayfort_google_auth";
 const POPUP_TIMEOUT_MS = 120_000;
+const MESSAGE_SOURCE = "fayfort-google-auth";
 
 function randomUrlSafe(count: number): string {
   const bytes = new Uint8Array(count);
@@ -88,9 +89,52 @@ export function openGoogleSignIn(
   const state = randomUrlSafe(16);
   const verifier = randomUrlSafe(32);
 
+  // The free-tier backend sleeps after idle; start waking it now so the code
+  // exchange (below) doesn't hit a cold start right after the user finishes
+  // picking a Google account.
+  void fetch("/api/backend/health").catch(() => {});
+
+  // The popup's /auth/callback page is same-origin and hands the code back
+  // over postMessage. No cross-origin URL polling — that triggered COOP
+  // "window.closed" warnings while the popup sat on Google's pages.
+  const onAuthMessage = (event: MessageEvent) => {
+    if (event.origin !== origin) return;
+    const data = event.data as {
+      source?: string;
+      code?: string;
+      state?: string;
+      error?: string;
+    } | null;
+    if (!data || data.source !== MESSAGE_SOURCE) return;
+    window.removeEventListener("message", onAuthMessage);
+    if (data.error) {
+      // e.g. access_denied — the visitor cancelled the chooser.
+      popup.close();
+      return;
+    }
+    if (!data.code || data.state !== state) {
+      // Stale or forged callback — never exchange it.
+      popup.close();
+      return;
+    }
+    popup.close();
+    void completeGoogleSignIn({
+      code: data.code,
+      codeVerifier: verifier,
+      nonce,
+      redirectUri: `${origin}${CALLBACK_PATH}`,
+    });
+  };
+  window.addEventListener("message", onAuthMessage);
+  window.setTimeout(() => {
+    window.removeEventListener("message", onAuthMessage);
+    if (!popup.closed) popup.close();
+  }, POPUP_TIMEOUT_MS);
+
   void (async () => {
     const codeChallenge = await pkceChallenge(verifier);
     if (!codeChallenge) {
+      window.removeEventListener("message", onAuthMessage);
       popup.close();
       unavailableHook?.({
         reason: "crypto-unavailable",
@@ -112,64 +156,6 @@ export function openGoogleSignIn(
     popup.location.assign(`${AUTH_ENDPOINT}?${params.toString()}`);
   })();
 
-  const started = Date.now();
-  const timer = window.setInterval(() => {
-    if (popup.closed) {
-      window.clearInterval(timer);
-      return;
-    }
-    if (Date.now() - started > POPUP_TIMEOUT_MS) {
-      window.clearInterval(timer);
-      popup.close();
-      return;
-    }
-
-    let href = "";
-    try {
-      href = popup.location.href;
-    } catch {
-      return; // still on accounts.google.com (cross-origin) — keep polling
-    }
-    let url: URL;
-    try {
-      url = new URL(href);
-    } catch {
-      return;
-    }
-    if (url.origin !== origin) return;
-
-    window.clearInterval(timer);
-    const error = url.searchParams.get("error");
-    if (error) {
-      // Covers access_denied and any other error Google reports back.
-      popup.close();
-      return;
-    }
-    const code = url.searchParams.get("code");
-    if (!code) {
-      unavailableHook?.({
-        reason: "unable-to-retrieve-token",
-        origin,
-      });
-      popup.close();
-      return;
-    }
-    // The state must match the one we sent, or this is a stale / forged
-    // callback and must not be exchanged.
-    if (url.searchParams.get("state") !== state) {
-      popup.close();
-      return;
-    }
-    popup.close();
-
-    void completeGoogleSignIn({
-      code,
-      codeVerifier: verifier,
-      nonce,
-      redirectUri: `${origin}${CALLBACK_PATH}`,
-    });
-  }, 200);
-
   return true;
 }
 
@@ -182,12 +168,13 @@ interface GoogleCodeExchangePayload {
 
 /**
  * Exchanges the authorization code for a Fayfort session. The backend runs on
- * Render's free tier, which sleeps after idle and can take a minute to wake —
- * so 5xx / network failures on this first call are retried with backoff
- * instead of silently leaving the visitor on the landing page.
+ * Render's free tier, which sleeps after idle and can take roughly a minute to
+ * wake — so 5xx / network failures on this first call are retried with
+ * backoff (alongside the warm-up ping in {@link openGoogleSignIn}) instead of
+ * silently leaving the visitor on the landing page.
  */
 async function completeGoogleSignIn(payload: GoogleCodeExchangePayload): Promise<void> {
-  const maxAttempts = 3;
+  const maxAttempts = 5;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await fetch("/api/backend/oauth/google/code", {
@@ -208,7 +195,7 @@ async function completeGoogleSignIn(payload: GoogleCodeExchangePayload): Promise
       // Network failure — the backend may still be waking up.
     }
     if (attempt < maxAttempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 4000 * (attempt + 1)));
+      await new Promise((resolve) => setTimeout(resolve, 5000 * (attempt + 1)));
     }
   }
 }
