@@ -93,7 +93,7 @@ export function PushNudge({ className }: { className?: string }) {
       role="status"
       data-testid="push-nudge"
       className={cn(
-        "border-accent-200 bg-accent-50/70 flex items-center gap-3 rounded-xl border px-3 py-2.5",
+        "border-accent-200 bg-accent-50/70 flex items-center gap-3 rounded-xl border px-3 py-2 sm:py-2.5",
         className,
       )}
     >

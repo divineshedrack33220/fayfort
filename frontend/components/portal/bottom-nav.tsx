@@ -47,7 +47,7 @@ export function PortalBottomNav({
               <Link
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
-                className="group flex min-h-13 flex-col items-center justify-center gap-1 px-1 pt-1.5 pb-1 outline-none focus-visible:bg-sand-100"
+                className="group flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1 pb-0.5 outline-none focus-visible:bg-sand-100"
               >
                 <span
                   className={cn(

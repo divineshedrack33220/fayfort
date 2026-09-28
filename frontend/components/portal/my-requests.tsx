@@ -104,10 +104,10 @@ export function MyRequests({ requests }: { requests: PortalRequestRow[] }) {
       : requests.filter((request) => request.status === key).length;
 
   return (
-    <div className="container-shell flex flex-col gap-5 py-6 sm:gap-6 sm:py-10">
+    <div className="container-shell flex flex-col gap-4 py-4 sm:gap-6 sm:py-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-brand-900 sm:text-4xl">
+          <h1 className="font-display text-xl font-semibold tracking-tight text-brand-900 sm:text-4xl">
             My Requests
           </h1>
           <p className="text-sm text-sand-500 sm:text-base">

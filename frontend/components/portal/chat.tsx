@@ -239,8 +239,11 @@ export function Chat({
         {/* On phones the conversation strip sits above the thread, so its row is
             fixed and the thread takes the rest; from `lg` the pair becomes two
             columns of a single row. */}
-        <CardContent className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-0 lg:grid-cols-[18rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-          <div className="flex min-h-0 flex-col border-b border-sand-100 lg:border-r lg:border-b-0">
+        {/* The conversation strip is desktop-only: on phones the thread header
+            already shows the subject and ref, so the strip is dead vertical
+            space (Instagram keeps a phone chat a single full-height column). */}
+        <CardContent className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden p-0 lg:grid-cols-[18rem_minmax(0,1fr)]">
+          <div className="hidden min-h-0 flex-col border-r border-sand-100 lg:flex">
             <p className="px-5 pt-3 pb-1 text-[10px] font-semibold tracking-widest text-sand-500 uppercase">
               Conversations
             </p>
@@ -271,7 +274,7 @@ export function Chat({
           </div>
 
           <div className="flex min-h-0 flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-sand-100 px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-sand-100 px-3 py-2 sm:px-4 sm:py-3">
               <div className="flex min-w-0 flex-col">
                 <p className="truncate font-display text-sm font-semibold text-brand-900">
                   {thread?.subject ?? "Fayfort chat"}
@@ -287,13 +290,13 @@ export function Chat({
               />
             </div>
 
-            <PushNudge className="mx-2 mt-2 shrink-0" />
+            <PushNudge className="mx-2 mt-1 shrink-0" />
 
             <div
               ref={scrollRef}
               aria-live="polite"
               aria-atomic="false"
-              className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-5"
+              className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3 sm:gap-2.5 sm:px-4 sm:py-5"
             >
               {messages.length > 0 ? (
                 <p className="self-center rounded-full bg-sand-100 px-3 py-1 text-[10px] font-semibold tracking-widest text-sand-500 uppercase">
@@ -371,7 +374,7 @@ export function Chat({
               ) : null}
             </div>
 
-            <div className="flex shrink-0 flex-col gap-3 border-t border-sand-100 p-3 sm:p-4">
+            <div className="flex shrink-0 flex-col gap-2 border-t border-sand-100 px-2.5 py-2 sm:gap-3 sm:p-4">
               {pending.length > 0 ? (
                 <LightboxGallery
                   items={pending.map((entry, position) => ({
@@ -423,13 +426,13 @@ export function Chat({
                 onSubmit={send}
                 className="flex items-center gap-1 rounded-full border border-sand-200 bg-sand-50 p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 sm:p-1 sm:pr-1.5"
               >
-                <EmojiPicker onSelect={insertEmoji} className="size-11 sm:size-10" />
+                <EmojiPicker onSelect={insertEmoji} className="size-10 sm:size-9" />
                 <button
                   type="button"
                   aria-label="Attach an image or video"
                   disabled={replyBusy}
                   onClick={() => fileRef.current?.click()}
-                  className="text-sand-400 hover:bg-sand-100 hover:text-sand-700 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50 sm:size-10"
+                  className="text-sand-400 hover:bg-sand-100 hover:text-sand-700 flex size-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50 sm:size-9"
                 >
                   <Paperclip aria-hidden className="size-5" />
                 </button>
@@ -440,7 +443,7 @@ export function Chat({
                   aria-label="Message"
                   // Inline, borderless like the staff composer: the pill around
                   // it carries the focus ring.
-                  className="placeholder:text-sand-400 bg-transparent text-sand-900 focus:ring-0 min-w-0 flex-1 rounded-full px-2 py-2 text-sm focus:outline-none"
+                  className="placeholder:text-sand-400 bg-transparent text-sand-900 focus:ring-0 min-w-0 flex-1 rounded-full px-2 py-1.5 text-sm focus:outline-none"
                 />
                 <input
                   ref={fileRef}
@@ -461,7 +464,7 @@ export function Chat({
                   size="sm"
                   disabled={(!draft.trim() && pending.length === 0) || replyBusy}
                   aria-label="Send message"
-                  className="h-11 rounded-full px-4 sm:h-10 sm:px-3"
+                  className="h-10 rounded-full px-4 sm:h-9 sm:px-3"
                 >
                   <Send aria-hidden className="size-4" />
                   <span className="hidden sm:inline">

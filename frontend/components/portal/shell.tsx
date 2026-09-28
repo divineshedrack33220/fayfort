@@ -130,9 +130,10 @@ export async function PortalShell({
         </div>
       </aside>
 
-      {/* Mobile app bar — the bottom tabs carry navigation, so this stays slim. */}
+      {/* Mobile app bar — the bottom tabs carry navigation, so this stays
+          slim, Instagram-style: just the mark and the account controls. */}
       <header className="sticky top-0 z-30 shrink-0 border-b border-white/10 bg-brand-900 lg:hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+        <div className="flex items-center justify-between gap-3 px-3 py-1.5">
           <Link href="/" aria-label="Fayfort Sourcing — home">
             <SiteLogo onDark />
           </Link>
@@ -140,11 +141,11 @@ export async function PortalShell({
             <Link
               href="/profile"
               aria-label="Your account"
-              className="flex size-9 items-center justify-center rounded-full outline-none ring-brand-300 focus-visible:ring-2"
+              className="flex size-8 items-center justify-center rounded-full outline-none ring-brand-300 focus-visible:ring-2"
             >
               <span
                 aria-hidden
-                className="flex size-8 items-center justify-center rounded-full bg-accent-600 font-display text-xs font-semibold text-white"
+                className="flex size-7 items-center justify-center rounded-full bg-accent-600 font-display text-[11px] font-semibold text-white"
               >
                 {initials}
               </span>
@@ -152,7 +153,7 @@ export async function PortalShell({
             <LogoutButton
               iconOnly
               ariaLabel="Log out"
-              className="flex size-9 items-center justify-center rounded-lg text-brand-200 transition-colors hover:bg-white/5 hover:text-white"
+              className="flex size-8 items-center justify-center rounded-lg text-brand-200 transition-colors hover:bg-white/5 hover:text-white"
             >
               <LogOut aria-hidden className="size-4" />
             </LogoutButton>
