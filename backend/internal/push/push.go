@@ -56,6 +56,9 @@ type Payload struct {
 	Icon               string `json:"icon,omitempty"`
 	Badge              string `json:"badge,omitempty"`
 	RequireInteraction bool   `json:"requireInteraction,omitempty"`
+	// Vibrate is the OS-level ring pattern played when the notification is
+	// shown. Calls set a longer, attention-grabbing pattern.
+	Vibrate []int `json:"vibrate,omitempty"`
 }
 
 // Sender signs and delivers payloads to push services.

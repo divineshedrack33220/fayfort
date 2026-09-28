@@ -117,7 +117,7 @@ async function showPush(payload) {
     badge: payload.badge || "/badge-96.png",
     image: payload.image,
     tag,
-    renotify: false,
+    renotify: Boolean(payload.renotify),
     requireInteraction: Boolean(payload.requireInteraction),
     vibrate: payload.vibrate || [100, 40, 100],
     timestamp: payload.at ? Date.parse(payload.at) || Date.now() : Date.now(),

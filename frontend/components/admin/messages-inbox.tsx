@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { CallLayer, CallStartButtons } from "@/components/ui/call-overlay";
+import { PushNudge } from "@/components/pwa/push-nudge";
 import { useCall } from "@/components/ui/use-call";
 import { ChatAttachments, attachmentPreviewLabel } from "@/components/ui/chat-attachments";
 import { EmojiPicker } from "@/components/ui/emoji-picker";
@@ -492,6 +493,8 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
                 />
               </div>
             </header>
+
+            <PushNudge className="mx-4 mt-2 mb-1 shrink-0" />
 
             <ol
               ref={listRef}

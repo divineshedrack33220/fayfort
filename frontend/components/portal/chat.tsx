@@ -6,6 +6,7 @@ import { MessageSquare, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CallLayer, CallStartButtons } from "@/components/ui/call-overlay";
+import { PushNudge } from "@/components/pwa/push-nudge";
 import { useCall } from "@/components/ui/use-call";
 import { ChatAttachments } from "@/components/ui/chat-attachments";
 import { EmojiPicker } from "@/components/ui/emoji-picker";
@@ -285,6 +286,8 @@ export function Chat({
                 disabled={call.state.phase !== "idle" || !thread}
               />
             </div>
+
+            <PushNudge className="mx-2 mt-2 shrink-0" />
 
             <div
               ref={scrollRef}

@@ -61,6 +61,7 @@ func New(s *store.DB, l *log.Logger, googleClientID, googleClientSecret string) 
 		GoogleClientID:     googleClientID,
 		GoogleClientSecret: googleClientSecret,
 	}
+	srv.hub.setCallNotifier(srv.notifyCallEvent)
 	go srv.pruneWSTokens()
 	return srv
 }

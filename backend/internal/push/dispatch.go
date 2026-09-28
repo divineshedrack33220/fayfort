@@ -95,6 +95,22 @@ func (d *Dispatcher) DispatchUserSync(ctx context.Context, email string, payload
 	return d.deliver(ctx, subs, payload), nil
 }
 
+// DispatchUser delivers a payload to one account's devices in the background.
+// Used where a notification must reach a specific person (a missed call's
+// caller) rather than everyone who shares their role.
+func (d *Dispatcher) DispatchUser(email string, payload Payload) {
+	if !d.sender.Ready() {
+		return
+	}
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		if _, err := d.DispatchUserSync(context.Background(), email, payload); err != nil {
+			d.log.Printf("push: dispatch to %s failed: %v", email, err)
+		}
+	}()
+}
+
 // deliver fans a payload out to a fixed set of devices, one goroutine each, and
 // folds the per-device outcomes into a single Result once they have all landed.
 func (d *Dispatcher) deliver(ctx context.Context, subs []domain.PushSubscription, payload Payload) Result {

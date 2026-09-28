@@ -68,11 +68,35 @@ type typingState struct {
 // again. The hub stores it so a late subscriber still gets the ring and so a
 // disconnecting caller does not leave a phone ringing forever.
 type callInvite struct {
-	callID string
-	from   string
-	role   string
-	mode   string
-	until  time.Time
+	callID    string
+	from      string
+	fromEmail string
+	role      string
+	mode      string
+	until     time.Time
+}
+
+// callEventKind distinguishes the two call lifecycle facts the hub hands to
+// the notifier: an unanswered ring (invite) and one that nobody answered
+// (missed).
+type callEventKind int
+
+const (
+	callEventInvite callEventKind = iota
+	callEventMissed
+)
+
+// callEvent is a hub-level call lifecycle fact the notifier turns into device
+// pushes and in-app entries. Everything is transient: the hub forgets a call
+// the moment it ends or expires.
+type callEvent struct {
+	kind      callEventKind
+	threadID  string
+	callID    string
+	from      string
+	fromEmail string
+	role      string
+	mode      string
 }
 
 // wsHub routes typing events between the participants of a thread. It is
@@ -85,6 +109,10 @@ type wsHub struct {
 	admins  map[*wsClient]struct{}
 	typing  map[string]map[string]typingState
 	calls   map[string]map[*wsClient]callInvite
+	// onCall routes call lifecycle events (invite, missed) to the notifier so
+	// devices ring even when no socket is listening. Advisory: it is fired for
+	// its side effects and the hub never blocks on it.
+	onCall func(callEvent)
 }
 
 func newWSHub() *wsHub {
@@ -96,6 +124,12 @@ func newWSHub() *wsHub {
 	}
 	go h.sweep()
 	return h
+}
+
+// setCallNotifier wires the callback that turns call lifecycle events into
+// push notifications and in-app entries. Nil means the hub never notifies.
+func (h *wsHub) setCallNotifier(fn func(callEvent)) {
+	h.onCall = fn
 }
 
 func (h *wsHub) subscribe(c *wsClient, threadID string) {
@@ -216,8 +250,8 @@ func validCallMode(mode string) bool {
 // person supersedes the first so a double-click cannot leave two rings.
 func (h *wsHub) callInviteEvent(threadID, callID, mode string, c *wsClient) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.clients[threadID] == nil {
+		h.mu.Unlock()
 		return
 	}
 	role := wsRole(c.user)
@@ -227,17 +261,50 @@ func (h *wsHub) callInviteEvent(threadID, callID, mode string, c *wsClient) {
 	if previous, ok := h.calls[threadID][c]; ok && previous.callID != callID {
 		h.sendCallCancelLocked(threadID, previous, "superseded")
 	}
-	h.calls[threadID][c] = callInvite{
-		callID: callID,
-		from:   c.user.Name,
-		role:   role,
-		mode:   mode,
-		until:  time.Now().Add(wsCallInviteTTL),
+	invite := callInvite{
+		callID:    callID,
+		from:      c.user.Name,
+		fromEmail: c.user.Email,
+		role:      role,
+		mode:      mode,
+		until:     time.Now().Add(wsCallInviteTTL),
 	}
+	h.calls[threadID][c] = invite
 	h.broadcastLocked(threadID, wsMessage{
 		Type: "call:invite", ThreadID: threadID, CallID: callID,
 		From: c.user.Name, Role: role, Mode: mode,
 	}, c)
+	// Push the ring when the invitee is not live on the thread: an open tab
+	// gets the in-app ring card, but a backgrounded or closed browser needs
+	// the OS notification to actually ring. Checked before releasing the lock
+	// so nobody races the ring list.
+	needRingPush := !h.hasLiveSideLocked(threadID, oppositeSide(role))
+	h.mu.Unlock()
+	if needRingPush && h.onCall != nil {
+		h.onCall(callEvent{
+			kind: callEventInvite, threadID: threadID, callID: callID,
+			from: invite.from, fromEmail: invite.fromEmail, role: role, mode: mode,
+		})
+	}
+}
+
+// hasLiveSideLocked reports whether anyone of the given conversation side is
+// currently subscribed to the thread.
+func (h *wsHub) hasLiveSideLocked(threadID, side string) bool {
+	for c := range h.clients[threadID] {
+		if wsRole(c.user) == side {
+			return true
+		}
+	}
+	return false
+}
+
+// oppositeSide is the other half of a conversation.
+func oppositeSide(side string) string {
+	if side == "staff" {
+		return "customer"
+	}
+	return "staff"
 }
 
 // callCloseEvent clears the ring this callId belongs to and relays the
@@ -340,7 +407,8 @@ func (h *wsHub) notifyThreads() {
 	}
 }
 
-// sweep fires "stopped" events once a sender's indicator expires.
+// sweep fires "stopped" events once a sender's indicator expires and closes
+// call rings nobody answered.
 func (h *wsHub) sweep() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -367,25 +435,33 @@ func (h *wsHub) sweep() {
 				}
 			}
 		}
-		h.sweepCallInvites(now)
-		h.mu.Unlock()
-	}
-}
-
-// sweepCallInvites expires rings nobody answered. A client that never hears
-// the cancel keeps its own phone buzzing until its own timer fires, so the
-// hub pushes the close rather than only dropping its bookkeeping.
-func (h *wsHub) sweepCallInvites(now time.Time) {
-	for threadID, byClient := range h.calls {
-		for client, invite := range byClient {
-			if !now.After(invite.until) {
-				continue
+		// Expire rings nobody answered. A client that never hears the cancel
+		// keeps its own phone buzzing until its own timer fires, so the hub
+		// pushes the close rather than only dropping its bookkeeping.
+		var missed []callEvent
+		for threadID, byClient := range h.calls {
+			for client, invite := range byClient {
+				if !now.After(invite.until) {
+					continue
+				}
+				delete(byClient, client)
+				h.sendCallCancelLocked(threadID, invite, "timeout")
+				if invite.fromEmail != "" {
+					missed = append(missed, callEvent{
+						kind: callEventMissed, threadID: threadID, callID: invite.callID,
+						from: invite.from, fromEmail: invite.fromEmail, role: invite.role, mode: invite.mode,
+					})
+				}
 			}
-			delete(byClient, client)
-			h.sendCallCancelLocked(threadID, invite, "timeout")
+			if len(byClient) == 0 {
+				delete(h.calls, threadID)
+			}
 		}
-		if len(byClient) == 0 {
-			delete(h.calls, threadID)
+		h.mu.Unlock()
+		if h.onCall != nil {
+			for _, event := range missed {
+				h.onCall(event)
+			}
 		}
 	}
 }

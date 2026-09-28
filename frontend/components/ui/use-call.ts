@@ -8,6 +8,7 @@ import {
   type CallTicket,
   type CallTrack,
 } from "@/lib/call-session";
+import { notifyIncomingCall, notifyMissedCall } from "@/lib/call-notify";
 import type { CallMode, CallSignal, CallSignalType, ChatSocket } from "@/lib/chat-socket";
 
 export type CallPhase = "idle" | "connecting" | "ringing-out" | "ringing-in" | "active";
@@ -260,6 +261,9 @@ export function useCall(options: {
           elapsed: 0,
           tracks: [],
         });
+        // The invitee is live on the thread, but a backgrounded tab hides the
+        // in-app ring card, so raise an OS-level alert on this device too.
+        notifyIncomingCall(peerRef.current, signal.mode);
         return;
       }
       // Every other frame belongs to a specific call: a late or duplicate one
@@ -275,8 +279,10 @@ export function useCall(options: {
         toast.info(`${peerRef.current} declined the call.`);
       } else if (type === "call:cancel") {
         teardown();
-        if (signal.reason === "timeout") toast.info("No answer.");
-        else if (signal.reason === "superseded") toast.info("Call replaced by another call.");
+        if (signal.reason === "timeout") {
+          toast.info("No answer.");
+          notifyMissedCall(peerRef.current, signal.mode);
+        } else if (signal.reason === "superseded") toast.info("Call replaced by another call.");
         // Their side failed to connect while ours was waiting: without this the
         // caller would sit in an empty room with no explanation.
         else if (signal.reason === "error") toast.info("The other side could not connect.");
