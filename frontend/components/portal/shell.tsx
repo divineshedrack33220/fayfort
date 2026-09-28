@@ -15,6 +15,7 @@ import { Notifications } from "@/components/portal/notifications";
 import { PortalBottomNav } from "@/components/portal/bottom-nav";
 import { SidebarChatBadge } from "@/components/portal/sidebar-chat-badge";
 import { SidebarNotificationBadge } from "@/components/portal/sidebar-notification-badge";
+import { NotificationTabBadge } from "@/components/portal/nav-badge";
 import { LogoutButton } from "@/components/auth/logout-button";
 import type { MockSession } from "@/lib/auth";
 import { getPortalRequests } from "@/lib/data/portal";
@@ -71,7 +72,7 @@ export async function PortalShell({
     <div
       className={cn(
         "flex min-h-dvh flex-col bg-sand-100/70",
-        fullHeight && "h-dvh overflow-hidden",
+        fullHeight && "h-[var(--app-vh,100dvh)] overflow-hidden",
       )}
     >
       {/* Desktop sidebar */}
@@ -137,11 +138,19 @@ export async function PortalShell({
           <Link href="/" aria-label="Fayfort Sourcing — home">
             <SiteLogo onDark />
           </Link>
-          <span className="flex items-center gap-1">
+          <span className="flex shrink-0 items-center gap-1">
+            <Link
+              href="/notifications"
+              aria-label="Your notifications"
+              className="relative flex size-8 shrink-0 items-center justify-center rounded-lg text-brand-200 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Bell aria-hidden className="size-[18px]" />
+              <NotificationTabBadge />
+            </Link>
             <Link
               href="/profile"
               aria-label="Your account"
-              className="flex size-8 items-center justify-center rounded-full outline-none ring-brand-300 focus-visible:ring-2"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full outline-none ring-brand-300 focus-visible:ring-2"
             >
               <span
                 aria-hidden
@@ -150,13 +159,6 @@ export async function PortalShell({
                 {initials}
               </span>
             </Link>
-            <LogoutButton
-              iconOnly
-              ariaLabel="Log out"
-              className="flex size-8 items-center justify-center rounded-lg text-brand-200 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <LogOut aria-hidden className="size-4" />
-            </LogoutButton>
           </span>
         </div>
       </header>
@@ -167,7 +169,8 @@ export async function PortalShell({
           that space to the page instead of letting the document scroll. */}
       <main
         className={cn(
-          "portal-bottom-clear flex flex-1 flex-col lg:pb-0 lg:pl-64",
+          "flex flex-1 flex-col lg:pb-0 lg:pl-64",
+          active !== "/chat" && "portal-bottom-clear",
           fullHeight && "min-h-0",
         )}
       >
@@ -180,7 +183,9 @@ export async function PortalShell({
         {children}
       </main>
 
-      <PortalBottomNav active={active} hasRequests={hasRequests} />
+      {active !== "/chat" ? (
+        <PortalBottomNav active={active} hasRequests={hasRequests} />
+      ) : null}
     </div>
   );
 }

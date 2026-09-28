@@ -3,14 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalBottomNav } from "@/components/portal/bottom-nav";
 
 const chatUnread = vi.fn(() => 0);
-const notificationsUnread = vi.fn(() => 0);
 
 vi.mock("@/components/portal/use-portal-chat", () => ({
   usePortalChatUnread: () => ({ unread: chatUnread() }),
-}));
-
-vi.mock("@/components/portal/use-portal-notifications", () => ({
-  usePortalNotifications: () => ({ unread: notificationsUnread(), items: [] }),
 }));
 
 function tab(name: RegExp) {
@@ -20,7 +15,6 @@ function tab(name: RegExp) {
 describe("PortalBottomNav", () => {
   beforeEach(() => {
     chatUnread.mockReturnValue(0);
-    notificationsUnread.mockReturnValue(0);
   });
 
   it("exposes the five portal destinations with their routes", () => {
@@ -30,7 +24,7 @@ describe("PortalBottomNav", () => {
     expect(tab(/^Requests$/i)).toHaveAttribute("href", "/dashboard");
     expect(tab(/^Quotes$/i)).toHaveAttribute("href", "/quotes");
     expect(tab(/^Chat$/i)).toHaveAttribute("href", "/chat");
-    expect(tab(/^Alerts$/i)).toHaveAttribute("href", "/notifications");
+    expect(tab(/^Profile$/i)).toHaveAttribute("href", "/profile");
   });
 
   it("marks only the current section as the active tab", () => {
@@ -57,7 +51,7 @@ describe("PortalBottomNav", () => {
     expect(screen.queryByRole("link", { name: /^Home$/i })).not.toBeInTheDocument();
     // The rest of the bar is unchanged; only the leading slot swaps.
     expect(tab(/^Quotes$/i)).toHaveAttribute("href", "/quotes");
-    expect(tab(/^Alerts$/i)).toHaveAttribute("href", "/notifications");
+    expect(tab(/^Profile$/i)).toHaveAttribute("href", "/profile");
   });
 
   it("always keeps five tabs so the bar does not reflow", () => {
@@ -68,18 +62,15 @@ describe("PortalBottomNav", () => {
     expect(screen.getAllByRole("link")).toHaveLength(5);
   });
 
-  it("shows unread bubbles for chat and alerts only when counts exist", () => {
+  it("shows an unread bubble for chat only when a count exists", async () => {
     const { unmount } = render(<PortalBottomNav active="/overview" hasRequests />);
     expect(screen.queryByLabelText(/unread/)).not.toBeInTheDocument();
     unmount();
 
     chatUnread.mockReturnValue(3);
-    notificationsUnread.mockReturnValue(12);
     render(<PortalBottomNav active="/overview" hasRequests />);
 
     expect(screen.getByLabelText("3 unread messages")).toBeInTheDocument();
-    // Counts above nine are capped so the bubble never widens its tab.
-    expect(screen.getByLabelText("12 unread notifications")).toHaveTextContent("9+");
   });
 
   it("renders a labelled navigation landmark", () => {

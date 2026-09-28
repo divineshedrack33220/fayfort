@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { LogOut } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { EditProfileDialog } from "@/components/portal/edit-profile-dialog";
 import { getPortalProfile } from "@/lib/data/portal";
 import { getSession } from "@/lib/session";
@@ -90,12 +92,20 @@ export default async function ProfilePage() {
             </p>
           </Card>
           <Card className="p-5">
-            <p className="font-display text-sm font-semibold text-brand-900">
-              Authentication
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-sand-500">
-              A secure session cookie keeps you signed in to your account.
-            </p>
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="font-display text-sm font-semibold text-brand-900">
+                  Authentication
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-sand-500">
+                  A secure session cookie keeps you signed in to your account.
+                </p>
+              </div>
+              <LogoutButton className="flex w-full items-center justify-center gap-2 rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm font-medium text-sand-700 transition-colors hover:bg-sand-50">
+                <LogOut aria-hidden className="size-4" />
+                Log out
+              </LogoutButton>
+            </div>
           </Card>
         </div>
       </div>

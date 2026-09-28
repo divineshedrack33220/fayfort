@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Bell, FileText, Home, Inbox, MessageSquare, Plus } from "lucide-react";
-import { ChatTabBadge, NotificationTabBadge } from "@/components/portal/nav-badge";
+import { FileText, Home, Inbox, MessageSquare, Plus, UserRound } from "lucide-react";
+import { ChatTabBadge } from "@/components/portal/nav-badge";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,7 +29,7 @@ export function PortalBottomNav({
     { href: "/dashboard", label: "Requests", icon: Inbox },
     { href: "/quotes", label: "Quotes", icon: FileText },
     { href: "/chat", label: "Chat", icon: MessageSquare },
-    { href: "/notifications", label: "Alerts", icon: Bell },
+    { href: "/profile", label: "Profile", icon: UserRound },
   ];
 
   return (
@@ -59,7 +59,6 @@ export function PortalBottomNav({
                 >
                   <Icon aria-hidden className="size-[18px]" strokeWidth={isActive ? 2.25 : 2} />
                   {item.href === "/chat" ? <ChatTabBadge /> : null}
-                  {item.href === "/notifications" ? <NotificationTabBadge /> : null}
                 </span>
                 <span
                   className={cn(

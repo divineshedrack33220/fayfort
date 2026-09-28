@@ -2,7 +2,8 @@
 
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Paperclip, Send, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, MessageSquare, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CallLayer, CallStartButtons } from "@/components/ui/call-overlay";
@@ -70,6 +71,7 @@ export function Chat({
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<ChatSocket | null>(null);
+  const router = useRouter();
   const messages = useMemo(() => thread?.messages ?? [], [thread]);
   // Staff identity is not exposed on the thread payload, so the peer is the
   // support desk rather than an individual.
@@ -101,6 +103,31 @@ export function Chat({
         .catch(() => {});
     }, 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    let active = true;
+    const syncHeight = () => {
+      // The mobile browser keyboard shrinks the visual viewport only. When the
+      // composer is focused the shell must stretch to the visible area so the
+      // keyboard never buries the header or the input below it.
+      if (!active) return;
+      const height = window.visualViewport?.height;
+      document.documentElement.style.setProperty(
+        "--app-vh",
+        height ? `${height}px` : "100dvh",
+      );
+    };
+    syncHeight();
+    const vv = window.visualViewport;
+    vv.addEventListener("resize", syncHeight);
+    vv.addEventListener("scroll", syncHeight);
+    return () => {
+      active = false;
+      vv.removeEventListener("resize", syncHeight);
+      vv.removeEventListener("scroll", syncHeight);
+    };
   }, []);
 
   useEffect(() => {
@@ -275,13 +302,29 @@ export function Chat({
 
           <div className="flex min-h-0 flex-col">
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-sand-100 px-3 py-2 sm:px-4 sm:py-3">
-              <div className="flex min-w-0 flex-col">
-                <p className="truncate font-display text-sm font-semibold text-brand-900">
-                  {thread?.subject ?? "Fayfort chat"}
-                </p>
-                <p className="truncate font-mono text-xs text-sand-500">
-                  {thread ? `${thread.ref} · ${STATUS_LABEL[thread.status] ?? thread.status}` : "…"}
-                </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.history.length > 1) {
+                      router.back();
+                    } else {
+                      router.replace("/overview");
+                    }
+                  }}
+                  aria-label="Go back"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-sand-600 transition-colors hover:bg-sand-100 hover:text-brand-800 lg:hidden"
+                >
+                  <ArrowLeft aria-hidden className="size-5" />
+                </button>
+                <div className="flex min-w-0 flex-col">
+                  <p className="truncate font-display text-sm font-semibold text-brand-900">
+                    {thread?.subject ?? "Fayfort chat"}
+                  </p>
+                  <p className="truncate font-mono text-xs text-sand-500">
+                    {thread ? `${thread.ref} · ${STATUS_LABEL[thread.status] ?? thread.status}` : "…"}
+                  </p>
+                </div>
               </div>
               <CallStartButtons
                 peer={callPeer}
