@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
   ArrowLeft,
   CheckCheck,
@@ -67,13 +66,18 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
   );
   const [threads, setThreads] = React.useState<AdminThread[]>(initialThreads);
   const [typingBy, setTypingBy] = React.useState<Record<string, string>>({});
+  // Which conversation the room shows. Switching it is a local state change:
+  // the URL is kept in sync with history.replaceState below, so moving between
+  // threads never refetches the page (nice on the dedicated mobile layout,
+  // which has no room side-by-side list).
+  const [selectedId, setSelectedId] = React.useState<string | null>(activeId ?? null);
   const socketRef = React.useRef<ChatSocket | null>(null);
   const subscribedRef = React.useRef<Set<string> | null>(null);
   const typingTimers = React.useRef<Record<string, number>>({});
   // The list-only view shows the newest thread, so calls act on whichever
   // thread the room is actually displaying.
   const roomThread =
-    threads.find((thread) => thread.id === activeId) ?? (!activeId ? threads[0] ?? null : null);
+    threads.find((thread) => thread.id === selectedId) ?? (!selectedId ? threads[0] ?? null : null);
   // The socket is created in an effect below, so the call reads it lazily
   // rather than taking a value that would not exist yet.
   const callPeer = roomThread?.customer ?? "the customer";
@@ -191,6 +195,24 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
       .catch(() => {});
   }, []);
 
+  /** Opens a conversation without a router round-trip. */
+  const selectThread = React.useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      markRead(id);
+      if (window.location.pathname !== `/admin/messages/${id}`) {
+        window.history.replaceState(null, "", `/admin/messages/${id}`);
+      }
+    },
+    [markRead],
+  );
+
+  /** Mobile reveals the conversation list by clearing the open thread. */
+  const showList = React.useCallback(() => {
+    setSelectedId(null);
+    window.history.replaceState(null, "", "/admin/messages");
+  }, []);
+
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return threads;
@@ -219,6 +241,14 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
     const timer = window.setTimeout(() => markRead(roomThread.id), 0);
     return () => window.clearTimeout(timer);
   }, [roomThread?.id, markRead]);
+
+  // Browser back/forward changes the route (and with it `activeId`) while the
+  // component stays mounted; adopt that as the selection instead of ignoring it.
+  // Deferred a tick to satisfy react-hooks/set-state-in-effect.
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setSelectedId(activeId ?? null), 0);
+    return () => window.clearTimeout(timer);
+  }, [activeId]);
 
   React.useEffect(() => {
     const el = listRef.current;
@@ -361,12 +391,12 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
             const isActive = roomThread?.id === thread.id;
             return (
               <li key={thread.id}>
-                <Link
-                  href={`/admin/messages/${thread.id}`}
+                <button
+                  type="button"
                   aria-label={`Conversation with ${thread.customer}`}
-                  onClick={() => markRead(thread.id)}
+                  onClick={() => selectThread(thread.id)}
                   className={cn(
-                    "flex items-start gap-3 rounded-xl px-3 py-3 transition-colors",
+                    "flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors",
                     isActive ? "ring-sand-200 bg-white shadow-sm ring-1" : "hover:bg-sand-100/80",
                   )}
                 >
@@ -409,7 +439,7 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
                       ) : null}
                     </span>
                   </span>
-                </Link>
+                </button>
               </li>
             );
           })}
@@ -430,13 +460,14 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
           <>
             <header className="border-sand-200 flex items-center justify-between gap-3 border-b px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <Link
-                  href="/admin/messages"
+                <button
+                  type="button"
                   aria-label="Back to conversations"
+                  onClick={showList}
                   className="text-sand-500 hover:bg-sand-100 hover:text-sand-900 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors md:hidden"
                 >
                   <ArrowLeft aria-hidden className="size-4" />
-                </Link>
+                </button>
                 <span
                   aria-hidden
                   className="bg-brand-100 font-display text-brand-800 flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
@@ -471,6 +502,15 @@ export function MessagesInbox({ initialThreads, activeId, staffName, onReply, ws
                   <span className="bg-success-200 h-px w-8" aria-hidden />
                   {roomThread.unread} new message{roomThread.unread > 1 ? "s" : ""}
                   <span className="bg-success-200 h-px w-8" aria-hidden />
+                </li>
+              ) : null}
+              {messages.length === 0 ? (
+                <li className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+                  <p className="text-sm font-medium text-sand-600">No messages yet</p>
+                  <p className="max-w-xs text-xs leading-relaxed text-sand-400">
+                    This conversation is empty — send the first reply to get the
+                    thread going.
+                  </p>
                 </li>
               ) : null}
               {messages.map((message) => (

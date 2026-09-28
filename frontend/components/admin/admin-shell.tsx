@@ -461,7 +461,11 @@ export function AdminShell({
       <main
         className={cn(
           "flex min-h-dvh flex-col lg:pl-64",
-          fullHeight && "min-h-0",
+          // `flex-1` (with the root pinned to `h-dvh`) is what hands the page a
+          // definite leftover height; without it the flex chain below collapses
+          // to its content, so an empty chat thread shrinks the card to the
+          // header and composer instead of pinning the composer at the bottom.
+          fullHeight && "min-h-0 flex-1",
         )}
       >
         {/* Desktop top bar */}
