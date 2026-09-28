@@ -309,12 +309,12 @@ function CallWindow({
       role="dialog"
       aria-modal="true"
       aria-label={`Call with ${peer}`}
-      className="fixed inset-0 z-50 flex items-stretch justify-center bg-sand-950/85 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-sand-950/85 backdrop-blur-sm sm:items-center sm:p-6"
     >
       {remoteAudio.map((track) => (
         <AudioHost key={track.id} track={track} />
       ))}
-      <div className="relative flex aspect-[9/16] w-full max-w-5xl flex-col overflow-hidden bg-sand-950 sm:aspect-video sm:rounded-2xl">
+      <div className="relative flex h-dvh w-full max-w-5xl flex-col overflow-hidden bg-sand-950 sm:h-auto sm:aspect-video sm:max-h-[92vh] sm:rounded-2xl">
         {remoteVideo && !remoteVideo.muted ? (
           <TrackTile track={remoteVideo} className="absolute inset-0" />
         ) : (
@@ -352,34 +352,49 @@ function CallWindow({
           </div>
         ) : null}
 
-        <div className="mt-auto flex items-center justify-center gap-3 bg-gradient-to-t from-black/70 to-transparent p-4 sm:gap-4 sm:p-5">
-          <ControlButton
-            label={state.micOn ? "Mute microphone" : "Unmute microphone"}
-            onClick={onToggleMic}
-            off={!state.micOn}
-          >
-            {state.micOn ? (
-              <Mic aria-hidden className="size-5" />
-            ) : (
-              <MicOff aria-hidden className="size-5" />
-            )}
-          </ControlButton>
-          {state.mode === "video" ? (
+        <div className="mt-auto z-10 flex items-end justify-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-4 sm:pb-4">
+          <div className="flex flex-col items-center gap-1">
             <ControlButton
-              label={state.cameraOn ? "Turn camera off" : "Turn camera on"}
-              onClick={onToggleCamera}
-              off={!state.cameraOn || !localLive}
+              label={state.micOn ? "Mute microphone" : "Unmute microphone"}
+              onClick={onToggleMic}
+              off={!state.micOn}
             >
-              {state.cameraOn && localLive ? (
-                <Video aria-hidden className="size-5" />
+              {state.micOn ? (
+                <Mic aria-hidden className="size-5" />
               ) : (
-                <VideoOff aria-hidden className="size-5" />
+                <MicOff aria-hidden className="size-5" />
               )}
             </ControlButton>
+            <span className="text-[10px] font-medium tracking-wide text-white/85">
+              {state.micOn ? "Mute" : "Unmute"}
+            </span>
+          </div>
+          {state.mode === "video" ? (
+            <div className="flex flex-col items-center gap-1">
+              <ControlButton
+                label={state.cameraOn ? "Turn camera off" : "Turn camera on"}
+                onClick={onToggleCamera}
+                off={!state.cameraOn || !localLive}
+              >
+                {state.cameraOn && localLive ? (
+                  <Video aria-hidden className="size-5" />
+                ) : (
+                  <VideoOff aria-hidden className="size-5" />
+                )}
+              </ControlButton>
+              <span className="text-[10px] font-medium tracking-wide text-white/85">
+                {state.cameraOn && localLive ? "Camera" : "Camera off"}
+              </span>
+            </div>
           ) : null}
-          <ControlButton label="End call" onClick={onHangUp} danger>
-            <PhoneOff aria-hidden className="size-5" />
-          </ControlButton>
+          <div className="flex flex-col items-center gap-1">
+            <ControlButton label="End call" onClick={onHangUp} danger>
+              <PhoneOff aria-hidden className="size-5" />
+            </ControlButton>
+            <span className="text-[10px] font-medium tracking-wide text-danger-300">
+              End
+            </span>
+          </div>
         </div>
       </div>
     </div>
