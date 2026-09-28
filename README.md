@@ -142,8 +142,8 @@ flowchart LR
 
     subgraph Frontend[Next.js service - fayfort-web]
         PAGES[App Router pages<br/>server components]
-        PROXY[/api/backend proxy<br/>forwards JSON + relays cookies]
-        CALLTOKEN[/api/calls/token<br/>mints LiveKit grant]
+        PROXY["/api/backend proxy<br/>forwards JSON + relays cookies"]
+        CALLTOKEN["/api/calls/token<br/>mints LiveKit grant"]
         PROXY --> PAGES
         CALLTOKEN --> PAGES
     end
@@ -386,7 +386,7 @@ and notification list.
 ```mermaid
 flowchart TD
     Q1[Owner creates quote for request] --> Q2{Quote status}
-    Q2 -->|SENT / PENDING| Q3[Customer sees it in portal]<br/>[decision panel]
+    Q2 -->|SENT / PENDING| Q3["Customer sees it in portal<br/>(decision panel)"]
     Q3 --> Q4{Customer action}
     Q4 -- Approve --> Q5[Quote APPROVED<br/>+ order created]
     Q4 -- Decline --> Q6[Quote DECLINED<br/>+ reason recorded]
@@ -462,7 +462,7 @@ sequenceDiagram
     H-->>C: call:accept
     C->>L: join room (already holds token)
     I->>L: join room
-    Note over C,I,L: active call (tracks, mute, camera)
+    Note over C,L: active call (tracks, mute, camera)
     C->>H: call:end → both leave
     Note over H: ring expires after 45s
     H-->>C: call:cancel {reason: timeout} → "No answer"
