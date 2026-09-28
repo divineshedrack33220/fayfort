@@ -1,0 +1,5 @@
+bin/
+fayfort.db
+fayfort.db-*
+*.test
+.git
