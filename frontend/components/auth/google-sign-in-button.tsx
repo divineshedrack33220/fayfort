@@ -1,0 +1,59 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import {
+  openGoogleSignIn,
+  googleDestination,
+  type GsiUnavailable,
+} from "@/lib/google-auth";
+import { SignInUnavailable } from "@/components/auth/sign-in-unavailable";
+
+/**
+ * Plain "Sign In" action for the marketing header. Clicking it opens the
+ * Google account chooser, which either signs the person in or creates a
+ * Fayfort account in one step — no signup forms anywhere. After auth the
+ * account is routed by role (admins to the console, customers to `/apply` or
+ * a safe `?next=` deep link). If no OAuth client id is configured the button
+ * falls back to a link to the landing page.
+ */
+export function GoogleSignInButton({ className }: { className?: string }) {
+  const router = useRouter();
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+  const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(
+    null,
+  );
+
+  const handleClick = () => {
+    openGoogleSignIn(
+      (role) => router.replace(googleDestination(role, "/apply")),
+      (info) => setUnavailable(info),
+    );
+  };
+
+  return (
+    <>
+      {!clientId ? (
+        <Link href="/" className={cn(signInClasses, className)}>
+          Sign In
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={handleClick}
+          className={cn(signInClasses, className)}
+        >
+          Sign In
+        </button>
+      )}
+      {unavailable && (
+        <SignInUnavailable info={unavailable} onDismiss={() => setUnavailable(null)} />
+      )}
+    </>
+  );
+}
+
+const signInClasses =
+  "rounded-md border border-white/25 bg-white/5 px-3 py-2 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none";

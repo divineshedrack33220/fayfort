@@ -1,0 +1,10 @@
+# Go
+backend/fayfort.db
+backend/fayfort.db-*
+backend/bin/
+*.test
+
+# Node (frontend)
+node_modules/
+.next/
+next-env.d.ts
