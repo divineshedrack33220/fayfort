@@ -478,9 +478,14 @@ var wsUpgrader = websocket.Upgrader{
 }
 
 // EnvWSAllowedOrigins lists comma-separated origins (scheme://host[:port])
-// the WebSocket upgrade accepts in addition to loopback hosts. Set it to the
-// deployed frontend URL so browser sockets connect cross-origin in production.
+// the WebSocket upgrade accepts in addition to loopback hosts and the deployed
+// frontend. Set it when the web app runs from another domain.
 const EnvWSAllowedOrigins = "WS_ALLOWED_ORIGINS"
+
+// defaultWSAllowedOrigins are trusted in every environment: local dev hosts
+// plus this app's own deployed frontend, whose browser sockets are the reason
+// the upgrade exists.
+var defaultWSAllowedOrigins = []string{"https://fayfort-web.onrender.com"}
 
 func wsOriginAllowed(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -495,6 +500,11 @@ func wsOriginAllowed(r *http.Request) bool {
 	if host == "localhost" || host == "127.0.0.1" ||
 		host == "0.0.0.0" || host == "::1" || strings.HasSuffix(host, ".localhost") {
 		return true
+	}
+	for _, allowed := range defaultWSAllowedOrigins {
+		if allowed == origin || allowed == host {
+			return true
+		}
 	}
 	for _, allowed := range strings.Split(os.Getenv(EnvWSAllowedOrigins), ",") {
 		if allowed = strings.TrimSpace(allowed); allowed != "" && (allowed == origin || allowed == host) {

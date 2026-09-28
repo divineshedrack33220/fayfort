@@ -1344,10 +1344,10 @@ func TestWSOriginAllowed(t *testing.T) {
 		{"localhost", "http://localhost:3100", "", true},
 		{"loopback", "https://127.0.0.1:3100", "", true},
 		{"ipv6 loopback", "http://[::1]:3100", "", true},
-		{"web origin denied by default", "https://fayfort-web.onrender.com", "", false},
-		{"web origin allowed via env", "https://fayfort-web.onrender.com", "https://fayfort-web.onrender.com", true},
+		{"deployed frontend allowed by default", "https://fayfort-web.onrender.com", "", true},
+		{"web origin allowed via env too", "https://fayfort-web.onrender.com", "https://fayfort-web.onrender.com", true},
 		{"host match via env", "https://fayfort-web.onrender.com", "fayfort-web.onrender.com", true},
-		{"extra origins ignored list", "https://evil.example.com", "https://fayfort-web.onrender.com", false},
+		{"third-party origin still denied", "https://evil.example.com", "https://fayfort-web.onrender.com", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
