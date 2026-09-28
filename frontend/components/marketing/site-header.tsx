@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { SiteLogo } from "@/components/marketing/site-logo";
 import { SiteNav } from "@/components/marketing/site-nav";
-import { GetStartedButton } from "@/components/marketing/get-started-button";
 
 export function SiteHeader() {
   return (
@@ -12,8 +11,6 @@ export function SiteHeader() {
         </Link>
         <div className="flex items-center gap-1 sm:gap-2">
           <SiteNav />
-          <span aria-hidden className="hidden h-5 w-px bg-white/10 lg:block" />
-          <GetStartedButton />
         </div>
       </div>
     </header>

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toast";
 import { VitalsMonitor } from "@/components/performance/web-vitals";
 import { ServiceWorkerProvider } from "@/components/pwa/service-worker-provider";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { SITE_URL } from "@/lib/site-config";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -17,7 +18,7 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Fayfort Sourcing — China sourcing for African businesses",
     template: "%s | Fayfort Sourcing",
@@ -27,6 +28,9 @@ export const metadata: Metadata = {
   applicationName: "Fayfort Sourcing",
   keywords: ["china sourcing", "landed cost", "africa import", "procurement", "freight"],
   category: "business",
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -43,14 +47,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Fayfort Sourcing",
-    title: "Fayfort Sourcing — China sourcing for African businesses",
+    title: "Fayfort Sourcing — Know what your China purchase will really cost",
     description:
-      "Know what your China purchase will really cost before you buy. Transparent landed costs, verified suppliers.",
+      "Estimate your landed cost, understand your margins, then request, quote and track shipments. Fayfort sources from China for African businesses with transparent pricing.",
     url: "/",
     locale: "en_NG",
   },
   twitter: {
     card: "summary_large_image",
+    site: "@fayfort",
     title: "Fayfort Sourcing",
     description:
       "Know what your China purchase will really cost before you buy.",
@@ -75,7 +80,7 @@ const organizationJsonLd = {
   name: "Fayfort International Trading",
   description:
     "China-to-Africa sourcing with transparent landed costs — estimates, verified suppliers, quotes and shipment tracking.",
-  url: (process.env.NEXT_PUBLIC_APP_URL ?? "https://fayfort.com"),
+  url: SITE_URL,
   sameAs: [],
 };
 

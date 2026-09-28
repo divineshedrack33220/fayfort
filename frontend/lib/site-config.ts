@@ -8,4 +8,4 @@ export const IS_DEMO = process.env.NEXT_PUBLIC_IS_DEMO === "true";
 export const SITE_NAME = "Fayfort Sourcing";
 export const SITE_DESCRIPTION =
   "China-to-Africa sourcing with transparent landed costs. Estimate, request, quote and track your shipments.";
-export const SITE_URL = "https://fayfort.com";
+export const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://fayfort-web.onrender.com";

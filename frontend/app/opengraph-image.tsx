@@ -36,17 +36,38 @@ export default function OpengraphImage() {
             Know what your China purchase will really cost.
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                background: "#f71968",
+              }}
+            />
+            <div style={{ fontSize: 26, color: "#d8e4fb" }}>
+              Estimate · Request · Quote · Track
+            </div>
+          </div>
           <div
             style={{
-              width: 10,
-              height: 10,
+              fontSize: 22,
+              color: "#9fb3d9",
+              letterSpacing: 1,
+              padding: "10px 18px",
+              border: "1px solid rgba(216,228,251,0.28)",
               borderRadius: 999,
-              background: "#f71968",
             }}
-          />
-          <div style={{ fontSize: 26, color: "#d8e4fb" }}>
-            Estimate · Request · Quote · Track
+          >
+            fayfort-web.onrender.com
           </div>
         </div>
       </div>
