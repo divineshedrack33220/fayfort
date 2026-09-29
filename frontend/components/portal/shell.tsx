@@ -147,18 +147,6 @@ export async function PortalShell({
               <Bell aria-hidden className="size-[18px]" />
               <NotificationTabBadge />
             </Link>
-            <Link
-              href="/profile"
-              aria-label="Your account"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full outline-none ring-brand-300 focus-visible:ring-2"
-            >
-              <span
-                aria-hidden
-                className="flex size-7 items-center justify-center rounded-full bg-accent-600 font-display text-[11px] font-semibold text-white"
-              >
-                {initials}
-              </span>
-            </Link>
           </span>
         </div>
       </header>
