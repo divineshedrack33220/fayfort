@@ -21,7 +21,7 @@ var googleTokenInfoURL = "https://oauth2.googleapis.com/tokeninfo"
 // authorization code (from the PKCE code flow) for an ID token.
 var googleTokenURL = "https://oauth2.googleapis.com/token"
 
-const googleVerifierTimeout = 10 * time.Second
+const googleVerifierTimeout = 30 * time.Second
 
 var errInvalidGoogleToken = errors.New("httpapi: invalid Google ID token")
 var errGoogleExchange = errors.New("httpapi: Google authorization code exchange failed")
@@ -243,6 +243,9 @@ func (s *Server) handleGoogleOAuthCode(w http.ResponseWriter, r *http.Request) {
 
 // exchangeGoogleCode redeems an authorization code for an ID token using the
 // OAuth client secret and the PKCE verifier, then validates the token claims.
+// A transient network blip to Google (or a 5xx from their edge) is retried
+// once: the request may have never landed, so the single-use code can still be
+// redeemed on the second attempt.
 func (s *Server) exchangeGoogleCode(code, verifier, redirectURI string) (googleIDTokenClaims, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -253,35 +256,51 @@ func (s *Server) exchangeGoogleCode(code, verifier, redirectURI string) (googleI
 	form.Set("code_verifier", verifier)
 
 	client := &http.Client{Timeout: googleVerifierTimeout}
-	res, err := client.PostForm(googleTokenURL, form)
-	if err != nil {
-		return googleIDTokenClaims{}, err
+	var exchangeErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		res, err := client.PostForm(googleTokenURL, form)
+		if err != nil {
+			// Network failure before a response: the code may never have been
+			// sent, so it can still be exchanged on the retry.
+			exchangeErr = err
+			continue
+		}
+		if res.StatusCode != http.StatusOK {
+			res.Body.Close()
+			if res.StatusCode >= 500 {
+				// Google edge hiccup — the code was likely not consumed.
+				exchangeErr = errGoogleExchange
+				continue
+			}
+			// A 4xx (e.g. invalid_grant) means Google consumed or rejected the
+			// code; retrying cannot help.
+			return googleIDTokenClaims{}, errGoogleExchange
+		}
+		var payload struct {
+			IDToken string `json:"id_token"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+			res.Body.Close()
+			return googleIDTokenClaims{}, err
+		}
+		res.Body.Close()
+		claims, err := decodeIDTokenPayload(payload.IDToken)
+		if err != nil {
+			return googleIDTokenClaims{}, err
+		}
+		// The token must belong to our OAuth client.
+		if s.GoogleClientID != "" && claims.Aud != s.GoogleClientID {
+			return googleIDTokenClaims{}, errInvalidGoogleToken
+		}
+		// Reject expired tokens.
+		if claims.Exp != 0 && time.Now().Add(5*time.Minute).Unix() >= claims.Exp {
+			return googleIDTokenClaims{}, errInvalidGoogleToken
+		}
+		// Only accept Google-issued identity tokens.
+		if iss := claims.Iss; iss != "" && iss != "https://accounts.google.com" && iss != "accounts.google.com" {
+			return googleIDTokenClaims{}, errInvalidGoogleToken
+		}
+		return claims, nil
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return googleIDTokenClaims{}, errGoogleExchange
-	}
-	var payload struct {
-		IDToken string `json:"id_token"`
-	}
-	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
-		return googleIDTokenClaims{}, err
-	}
-	claims, err := decodeIDTokenPayload(payload.IDToken)
-	if err != nil {
-		return googleIDTokenClaims{}, err
-	}
-	// The token must belong to our OAuth client.
-	if s.GoogleClientID != "" && claims.Aud != s.GoogleClientID {
-		return googleIDTokenClaims{}, errInvalidGoogleToken
-	}
-	// Reject expired tokens.
-	if claims.Exp != 0 && time.Now().Add(5*time.Minute).Unix() >= claims.Exp {
-		return googleIDTokenClaims{}, errInvalidGoogleToken
-	}
-	// Only accept Google-issued identity tokens.
-	if iss := claims.Iss; iss != "" && iss != "https://accounts.google.com" && iss != "accounts.google.com" {
-		return googleIDTokenClaims{}, errInvalidGoogleToken
-	}
-	return claims, nil
+	return googleIDTokenClaims{}, exchangeErr
 }
