@@ -475,6 +475,25 @@ func (s *Server) handleListCustomers(w http.ResponseWriter, r *http.Request) {
 	listOr(w, map[string]any{"customers": customers}, err)
 }
 
+// handleListUsers answers every account (admin + customers) that can sign in,
+// so the staff console can see who is registered. Password hashes are never
+// returned.
+func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := s.Store.AllUsers()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load accounts")
+		return
+	}
+	accounts := make([]map[string]any, 0, len(users))
+	for _, u := range users {
+		accounts = append(accounts, map[string]any{
+			"id": u.ID, "name": u.Name, "email": u.Email,
+			"role": u.Role, "status": u.Status, "avatarUrl": u.AvatarURL, "createdAt": u.CreatedAt,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"accounts": accounts})
+}
+
 func (s *Server) handleListSuppliers(w http.ResponseWriter, r *http.Request) {
 	sups, err := s.Store.AllSuppliers()
 	listOr(w, map[string]any{"suppliers": sups}, err)

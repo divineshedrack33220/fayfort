@@ -135,6 +135,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/admin/shipments", s.requireAdmin(s.handleListShipments))
 	mux.HandleFunc("GET /api/admin/inspections", s.requireAdmin(s.handleListInspections))
 	mux.HandleFunc("GET /api/admin/customers", s.requireAdmin(s.handleListCustomers))
+	mux.HandleFunc("GET /api/admin/users", s.requireAdmin(s.handleListUsers))
 	mux.HandleFunc("GET /api/admin/suppliers", s.requireAdmin(s.handleListSuppliers))
 	mux.HandleFunc("GET /api/admin/messages", s.requireAdmin(s.handleListThreads))
 	mux.HandleFunc("GET /api/admin/messages/unread", s.requireAdmin(s.handleThreadUnreadTotal))

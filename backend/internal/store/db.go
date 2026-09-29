@@ -384,6 +384,27 @@ func (db *DB) UserByID(id string) (UserRow, error) {
 	return scanUser(row)
 }
 
+// AllUsers lists every account (admins and customers) in creation order, for
+// the staff console's account overview.
+func (db *DB) AllUsers() ([]UserRow, error) {
+	rows, err := db.Query(
+		`SELECT id, name, email, password_hash, role, status, avatar_url, created_at FROM users ORDER BY created_at, id`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]UserRow, 0)
+	for rows.Next() {
+		var u UserRow
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func (db *DB) UpdateUserAvatar(id, avatarURL string) error {
 	_, err := db.Exec(`UPDATE users SET avatar_url = ? WHERE id = ?`, avatarURL, id)
 	return err

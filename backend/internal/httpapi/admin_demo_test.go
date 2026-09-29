@@ -119,3 +119,57 @@ func TestAdminDemoReset(t *testing.T) {
 		t.Errorf("expected requests after reset?seed=true")
 	}
 }
+func TestAdminListUsers(t *testing.T) {
+	srv, db := newEmptyTestServer(t)
+	handler := srv.Routes()
+
+	hash, err := auth.HashPassword("demo1234")
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
+	if err := db.CreateUser(store.UserRow{
+		ID: "USR-CUS-002", Name: "Mina Peters", Email: "mina@example.com",
+		PasswordHash: hash, Role: "customer", Status: "ACTIVE",
+		CreatedAt: "2026-01-01T00:00:00Z",
+	}); err != nil {
+		t.Fatalf("customer user: %v", err)
+	}
+
+	// Unauthenticated users must be turned away.
+	rec, _ := doJSON(t, handler, http.MethodGet, "/api/admin/users", nil, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated -> %d, want 401", rec.Code)
+	}
+
+	// A customer must not read the account list.
+	customer := login(t, handler, "mina@example.com", "demo1234")
+	rec, _ = doJSON(t, handler, http.MethodGet, "/api/admin/users", nil, customer)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("customer -> %d, want 403", rec.Code)
+	}
+
+	admin := login(t, handler, "admin@fayfort.com", "admin123")
+	rec, payload := doJSON(t, handler, http.MethodGet, "/api/admin/users", nil, admin)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %v", rec.Code, payload)
+	}
+
+	accounts, _ := payload["accounts"].([]any)
+	if len(accounts) != 2 {
+		t.Fatalf("got %d accounts, want 2: %v", len(accounts), accounts)
+	}
+	emails := make([]string, 0, len(accounts))
+	for _, a := range accounts {
+		acct := a.(map[string]any)
+		emails = append(emails, acct["email"].(string))
+		if _, has := acct["password_hash"]; has {
+			t.Errorf("account payload must not expose the password hash")
+		}
+	}
+	want := []string{"admin@fayfort.com", "mina@example.com"}
+	for i, email := range emails {
+		if email != want[i] {
+			t.Errorf("accounts[%d].email = %q, want %q", i, email, want[i])
+		}
+	}
+}
