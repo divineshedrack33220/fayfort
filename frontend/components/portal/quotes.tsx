@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Building2, CalendarDays, ChevronDown, FileText } from "lucide-react";
+import { Building2, CalendarDays, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -137,21 +136,13 @@ export function Quotes({ quotes }: { quotes: PortalQuote[] }) {
 
   return (
     <div className="container-shell flex flex-col gap-4 py-4 sm:gap-6 sm:py-10">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="font-display text-brand-900 text-xl font-semibold tracking-tight sm:text-4xl">
-            Quotes
-          </h1>
-          <p className="text-sand-500 text-sm sm:text-base">
-            Approve or decline the quotes on your sourcing requests, and review your full history.
-          </p>
-        </div>
-        <Button asChild intent="accent" size="sm" className="w-full sm:w-fit">
-          <Link href="/apply">
-            <FileText aria-hidden className="size-4" />
-            New Request
-          </Link>
-        </Button>
+      <div className="flex flex-col gap-1">
+        <h1 className="font-display text-brand-900 text-xl font-semibold tracking-tight sm:text-4xl">
+          Quotes
+        </h1>
+        <p className="text-sand-500 text-sm sm:text-base">
+          Approve or decline the quotes on your sourcing requests, and review your full history.
+        </p>
       </div>
 
       <div className="bg-sand-200/70 flex gap-1 rounded-xl p-1">
