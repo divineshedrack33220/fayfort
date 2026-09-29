@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Bell,
   FilePlus2,
@@ -18,28 +21,32 @@ import { SidebarNotificationBadge } from "@/components/portal/sidebar-notificati
 import { NotificationTabBadge } from "@/components/portal/nav-badge";
 import { LogoutButton } from "@/components/auth/logout-button";
 import type { MockSession } from "@/lib/auth";
-import { getPortalRequests } from "@/lib/data/portal";
 import { cn } from "@/lib/utils";
 
 /**
  * App shell for gated customer pages.
  *
- * Phones get a slim app bar and a fixed bottom tab bar (`PortalBottomNav`);
- * `lg` and up get the dark sidebar. The two never appear together, and the
- * bottom bar's height is reserved on the document so it can never cover the
- * last control on a page.
+ * One shared instance is mounted by the `(portal)` route group, so the app
+ * bar, sidebar and bottom tabs stay put during navigation and only the page
+ * underneath swaps — the parts that make the portal feel native on a phone.
+ * `usePathname` derives the active section client-side, so no part of the
+ * chrome blocks on the session or on portal data.
  */
-export async function PortalShell({
-  active,
+function topSegment(pathname: string): string {
+  const segment = pathname.split("/")[1];
+  return segment ? `/${segment}` : "/overview";
+}
+
+export function PortalShell({
   session,
+  hasRequests,
   children,
 }: {
-  active: string;
   session: MockSession;
+  hasRequests: boolean;
   children: React.ReactNode;
 }) {
-  const requests = await getPortalRequests();
-  const hasRequests = requests.length > 0;
+  const active = topSegment(usePathname());
 
   const NAV = [
     ...(hasRequests
