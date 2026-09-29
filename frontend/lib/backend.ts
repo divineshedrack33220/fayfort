@@ -95,18 +95,25 @@ export async function backendWithCookies(path: string, init?: RequestInit): Prom
  * so existing `session.name` / `session.role` consumers keep working.
  */
 export const getSession = cache(async (): Promise<
-  { email: string; name?: string; signedInAt: string; role?: "customer" | "admin" } | null
+  {
+    email: string;
+    name?: string;
+    signedInAt: string;
+    role?: "customer" | "admin";
+    avatarUrl?: string;
+  } | null
 > => {
   try {
     const me = await backend<{
       ok: boolean;
-      user: { id: string; name: string; email: string; role?: string };
+      user: { id: string; name: string; email: string; role?: string; avatarUrl?: string };
     }>("/api/me", { method: "GET" });
     return {
       email: me.user.email,
       name: me.user.name,
       signedInAt: new Date().toISOString(),
       role: me.user.role === "admin" ? "admin" : "customer",
+      avatarUrl: me.user.avatarUrl,
     };
   } catch {
     return null;

@@ -122,9 +122,18 @@ export function PortalShell({
 
         <div className="border-t border-white/10 p-4">
           <div className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-600 font-display text-sm font-semibold text-white">
-              {initials}
-            </span>
+            {session.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={session.avatarUrl}
+                alt=""
+                className="size-9 shrink-0 rounded-full bg-white/10 ring-1 ring-white/20"
+              />
+            ) : (
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-600 font-display text-sm font-semibold text-white">
+                {initials}
+              </span>
+            )}
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-semibold text-white">
                 {userName}
@@ -179,7 +188,11 @@ export function PortalShell({
       </main>
 
       {active !== "/chat" ? (
-        <PortalBottomNav active={active} hasRequests={hasRequests} />
+        <PortalBottomNav
+          active={active}
+          hasRequests={hasRequests}
+          avatarUrl={session.avatarUrl}
+        />
       ) : null}
     </div>
   );

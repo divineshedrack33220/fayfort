@@ -16,6 +16,8 @@ export interface MockSession {
   signedInAt: string;
   /** Staff console access. Customer sessions omit this. */
   role?: "customer" | "admin";
+  /** Google profile picture URL, when the customer signed in with Google. */
+  avatarUrl?: string;
 }
 
 export function encodeSession(session: MockSession): string {
@@ -34,6 +36,7 @@ export function decodeSession(raw: string): MockSession | null {
       name: parsed.name,
       signedInAt: parsed.signedInAt,
       role,
+      avatarUrl: typeof parsed.avatarUrl === "string" ? parsed.avatarUrl : undefined,
     };
   } catch {
     return null;

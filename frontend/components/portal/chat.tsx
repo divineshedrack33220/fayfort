@@ -20,6 +20,7 @@ import {
   type PendingChatAttachment,
 } from "@/lib/chat-upload";
 import { ChatSocket } from "@/lib/chat-socket";
+import { playNotificationBlip } from "@/lib/sounds";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -71,6 +72,12 @@ export function Chat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<ChatSocket | null>(null);
   const router = useRouter();
+  // Mirrors `replyBusy` for the socket handlers below, which are wired once
+  // per thread and would otherwise capture a stale render's value.
+  const replyBusyRef = useRef(false);
+  useEffect(() => {
+    replyBusyRef.current = replyBusy;
+  }, [replyBusy]);
   const messages = useMemo(() => thread?.messages ?? [], [thread]);
   // Staff identity is not exposed on the thread payload, so the peer is the
   // support desk rather than an individual.
@@ -136,7 +143,12 @@ export function Chat({
         },
         onStopped: () => setTyper(null),
         onMessage: (threadId) => {
-          if (threadId === thread.id) void refreshThread();
+          if (threadId === thread.id) {
+            // Our own sends echo back through the same socket; only staff
+            // replies (which arrive while nothing is in flight) should blip.
+            if (!replyBusyRef.current) playNotificationBlip();
+            void refreshThread();
+          }
         },
         onCall: call.handleSignal,
       },
@@ -179,6 +191,9 @@ export function Chat({
     const text = draft.trim();
     if ((!text && pending.length === 0) || replyBusy) return;
     setReplyBusy(true);
+    // Clear the composer immediately so the message visibly leaves the input
+    // the moment Send is tapped, before the round-trip comes back.
+    setDraft("");
     const queued = pending;
     setUploadProgress(Object.fromEntries(queued.map((entry) => [entry.key, 0])));
     try {
@@ -208,9 +223,7 @@ export function Chat({
         return;
       }
       setThread(payload.thread);
-      setDraft("");
       clearPending();
-      toast.success("Message sent to the Fayfort team");
     } catch {
       toast.error("Your message couldn’t be sent. Try again shortly.");
     } finally {

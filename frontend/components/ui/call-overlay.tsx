@@ -315,44 +315,51 @@ function CallWindow({
         <AudioHost key={track.id} track={track} />
       ))}
       <div className="relative flex h-dvh w-full max-w-5xl flex-col overflow-hidden bg-sand-950 sm:h-auto sm:aspect-video sm:max-h-[92vh] sm:rounded-2xl">
-        {remoteVideo && !remoteVideo.muted ? (
-          <TrackTile track={remoteVideo} className="absolute inset-0" />
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-sand-900">
-            <span className="relative">
-              <Avatar name={peer} className="size-24 text-2xl" />
-              <span
-                aria-hidden
-                className="absolute -inset-2 animate-pulse rounded-full border-2 border-white/25"
-              />
-            </span>
-            <p className="font-display text-base text-white/90">
-              {connecting ? `Connecting to ${firstName(peer)}…` : `${firstName(peer)} is on the call`}
-            </p>
-          </div>
-        )}
+        {/* Media area owns the header and the local preview as overlays; the
+            control tray below is a normal flex child, so it can never be
+            pushed off screen on a short or rotated phone. */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          {remoteVideo && !remoteVideo.muted ? (
+            <TrackTile track={remoteVideo} className="absolute inset-0" />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-sand-900">
+              <span className="relative">
+                <Avatar name={peer} className="size-24 text-2xl" />
+                <span
+                  aria-hidden
+                  className="absolute -inset-2 animate-pulse rounded-full border-2 border-white/25"
+                />
+              </span>
+              <p className="font-display text-base text-white/90">
+                {connecting ? `Connecting to ${firstName(peer)}…` : `${firstName(peer)} is on the call`}
+              </p>
+            </div>
+          )}
 
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-black/55 to-transparent p-3 sm:p-4">
-          <div className="min-w-0">
-            <p className="truncate font-display text-sm font-semibold text-white sm:text-base">
-              {peer}
-            </p>
-            <p className="font-mono text-xs text-white/70">
-              {connecting ? "connecting…" : formatElapsed(state.elapsed)}
-            </p>
+          <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/55 to-transparent p-3 pb-6 sm:p-4 sm:pb-8">
+            <div className="min-w-0">
+              <p className="truncate font-display text-sm font-semibold text-white sm:text-base">
+                {peer}
+              </p>
+              <p className="font-mono text-xs text-white/70">
+                {connecting ? "connecting…" : formatElapsed(state.elapsed)}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white uppercase">
+              {state.mode === "video" ? "Video" : "Audio"}
+            </span>
           </div>
-          <span className="shrink-0 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white uppercase">
-            {state.mode === "video" ? "Video" : "Audio"}
-          </span>
+
+          {localVideo && localLive ? (
+            <div className="absolute top-16 right-3 z-10 aspect-3/4 w-24 overflow-hidden rounded-xl bg-sand-800 shadow-lg ring-1 ring-white/15 sm:top-20 sm:w-32">
+              <TrackTile track={localVideo} />
+            </div>
+          ) : null}
         </div>
 
-        {localVideo && localLive ? (
-          <div className="absolute top-16 right-3 aspect-3/4 w-24 overflow-hidden rounded-xl bg-sand-800 shadow-lg ring-1 ring-white/15 sm:top-20 sm:w-32">
-            <TrackTile track={localVideo} />
-          </div>
-        ) : null}
-
-        <div className="mt-auto z-10 flex items-end justify-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:gap-4 sm:pb-4">
+        {/* Always-on control tray. Sized by its own content so it survives any
+            viewport; the camera toggle hides only on an audio call. */}
+        <div className="z-20 flex items-center justify-center gap-4 bg-gradient-to-t from-black/80 to-transparent px-2 pt-6 pb-[max(0.75rem,max(env(safe-area-inset-bottom),1.25rem))] sm:gap-5 sm:pb-4">
           <div className="flex flex-col items-center gap-1">
             <ControlButton
               label={state.micOn ? "Mute microphone" : "Unmute microphone"}

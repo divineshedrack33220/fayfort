@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { playNotificationBlip } from "@/lib/sounds";
 import type { NotificationItem } from "@/lib/notifications";
 
 /**
@@ -10,6 +11,9 @@ import type { NotificationItem } from "@/lib/notifications";
  */
 export function usePortalNotifications() {
   const [items, setItems] = useState<NotificationItem[]>([]);
+  // Unread count from the last successful poll; null until one has landed so
+  // the first read never rings.
+  const prevUnreadRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -21,6 +25,10 @@ export function usePortalNotifications() {
         notifications?: NotificationItem[];
       };
       setItems(payload.notifications ?? []);
+      const unread = (payload.notifications ?? []).filter((item) => !item.read).length;
+      const previous = prevUnreadRef.current;
+      prevUnreadRef.current = unread;
+      if (previous !== null && unread > previous) playNotificationBlip();
     } catch {
       // backend unreachable — keep whatever we have
     }

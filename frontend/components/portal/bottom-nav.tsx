@@ -13,14 +13,20 @@ import { cn } from "@/lib/utils";
  * while the customer has nothing in flight, because `/overview` redirects to
  * `/apply` in that state and a tab that bounces reads as broken.
  *
+ * When the customer signed in with Google their profile photo becomes the
+ * Profile tab icon (falling back to the outline icon), so identity is right
+ * where a phone app puts it.
+ *
  * Rendered on the server — only the unread bubbles are client components.
  */
 export function PortalBottomNav({
   active,
   hasRequests,
+  avatarUrl,
 }: {
   active: string;
   hasRequests: boolean;
+  avatarUrl?: string;
 }) {
   const items = [
     hasRequests
@@ -29,7 +35,7 @@ export function PortalBottomNav({
     { href: "/dashboard", label: "Requests", icon: Inbox },
     { href: "/quotes", label: "Quotes", icon: FileText },
     { href: "/chat", label: "Chat", icon: MessageSquare },
-    { href: "/profile", label: "Profile", icon: UserRound },
+    { href: "/profile", label: "Profile", icon: UserRound, avatar: true },
   ];
 
   return (
@@ -42,6 +48,7 @@ export function PortalBottomNav({
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.href;
+          const showAvatar = "avatar" in item && Boolean(avatarUrl);
           return (
             <li key={item.href}>
               <Link
@@ -57,7 +64,19 @@ export function PortalBottomNav({
                       : "text-sand-500 group-hover:bg-sand-100 group-hover:text-brand-700",
                   )}
                 >
-                  <Icon aria-hidden className="size-[18px]" strokeWidth={isActive ? 2.25 : 2} />
+                  {showAvatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      className={cn(
+                        "size-[22px] rounded-full object-cover",
+                        isActive && "ring-1 ring-white/40",
+                      )}
+                    />
+                  ) : (
+                    <Icon aria-hidden className="size-[18px]" strokeWidth={isActive ? 2.25 : 2} />
+                  )}
                   {item.href === "/chat" ? <ChatTabBadge /> : null}
                 </span>
                 <span

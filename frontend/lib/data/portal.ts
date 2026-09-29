@@ -57,6 +57,7 @@ export interface PortalProfile {
   name: string;
   email: string;
   role: string;
+  avatarUrl?: string;
   city?: string;
   company?: string;
   currency?: string;

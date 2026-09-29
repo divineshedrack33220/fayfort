@@ -9,6 +9,7 @@ import {
   type CallTrack,
 } from "@/lib/call-session";
 import { notifyIncomingCall, notifyMissedCall } from "@/lib/call-notify";
+import { playConnected, startRing, stopRing } from "@/lib/sounds";
 import type { CallMode, CallSignal, CallSignalType, ChatSocket } from "@/lib/chat-socket";
 
 export type CallPhase = "idle" | "connecting" | "ringing-out" | "ringing-in" | "active";
@@ -309,6 +310,18 @@ export function useCall(options: {
   }, [state.phase, patch]);
 
   useEffect(() => {
+    // A real ring while the other side is being rung or we are ringing, and a
+    // chime the moment the call connects. The tone is a gesture-unlocked Web
+    // Audio synth, so it never needs a permission or an asset.
+    if (state.phase === "ringing-in") startRing("incoming");
+    else if (state.phase === "ringing-out") startRing("outgoing");
+    else {
+      stopRing();
+      if (state.phase === "active") playConnected();
+    }
+  }, [state.phase]);
+
+  useEffect(() => {
     // Set on mount rather than only at init: React (and StrictMode's double
     // mount in development) runs the cleanup between them, and a ref that is
     // only initialised once would stay false and freeze every update after.
@@ -316,6 +329,7 @@ export function useCall(options: {
     return () => {
       mountedRef.current = false;
       attemptRef.current += 1;
+      stopRing();
       void sessionRef.current?.disconnect();
       sessionRef.current = null;
     };
