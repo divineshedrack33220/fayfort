@@ -39,16 +39,20 @@ const quotes: PortalQuote[] = [
 describe("Quotes", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("lists quotes with supplier, value and status", () => {
+  it("lists quotes with supplier, value and status", async () => {
     render(<Quotes quotes={quotes} />);
+
+    // The action segment shows only quotes waiting on a decision.
     expect(screen.getByText("Wireless Headphones")).toBeInTheDocument();
-    expect(screen.getByText("Sneakers")).toBeInTheDocument();
     expect(screen.getByText("Shenzhen AmpCore Electronics")).toBeInTheDocument();
     expect(screen.getByText("$12,400")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /accept & continue/i })).toBeInTheDocument();
+    expect(screen.queryByText("Sneakers")).not.toBeInTheDocument();
+
+    // Decided quotes live under History.
+    await userEvent.click(screen.getByRole("button", { name: /history/i }));
+    expect(screen.getByText("Sneakers")).toBeInTheDocument();
     expect(screen.getByText("Approved")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /accept & continue/i }),
-    ).toBeInTheDocument();
   });
 
   it("declines a quote with a reason and confirms the persisted state", async () => {
@@ -89,14 +93,10 @@ describe("Quotes", () => {
     );
     render(<Quotes quotes={quotes} />);
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /decline quote/i }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: /decline quote/i }));
     const dialog = screen.getByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: /decline quote/i }));
 
-    expect(
-      await screen.findByText(/declined on Sep 25, 10:12/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/declined on Sep 25, 10:12/i)).toBeInTheDocument();
   });
 });
