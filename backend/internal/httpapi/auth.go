@@ -83,7 +83,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	s.setSessionCookie(w, token)
 	writeJSON(w, http.StatusCreated, sessionPayload{
 		OK: true, Token: token, ExpiresAt: time.Now().Add(sessionTTL).UTC().Format(time.RFC3339),
-		User: map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status},
+		User: map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status, "avatarUrl": user.AvatarURL},
 	})
 }
 
@@ -128,7 +128,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, sessionPayload{
 		OK: true, Token: token, ExpiresAt: time.Now().Add(sessionTTL).UTC().Format(time.RFC3339),
-		User: map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status},
+		User: map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status, "avatarUrl": user.AvatarURL},
 	})
 }
 
@@ -149,7 +149,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	user := currentUser(r)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":   true,
-		"user": map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status},
+		"user": map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status, "avatarUrl": user.AvatarURL},
 	})
 }
 

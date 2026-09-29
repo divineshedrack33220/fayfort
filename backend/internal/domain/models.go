@@ -131,6 +131,7 @@ type User struct {
 	PasswordHash string `json:"-"`
 	Role         string `json:"role"` // "admin" | "customer"
 	Status       string `json:"status"`
+	AvatarURL    string `json:"avatarUrl,omitempty"`
 	CreatedAt    string `json:"createdAt"`
 }
 

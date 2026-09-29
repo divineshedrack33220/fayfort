@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS users (
 	password_hash TEXT NOT NULL,
 	role          TEXT NOT NULL,
 	status        TEXT NOT NULL,
+	avatar_url    TEXT NOT NULL DEFAULT '',
 	created_at    TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -231,9 +232,39 @@ func applySchema(conn *sql.DB) error {
 	if _, err := conn.Exec(schema); err != nil {
 		return err
 	}
-	// Idempotent migration for database files created before the decision
-	// columns existed (fresh databases already include them).
+	// Idempotent migrations for database files created before a column was
+	// added (fresh databases already include them).
+	if err := migrateUsers(conn); err != nil {
+		return err
+	}
 	return migrateQuotes(conn)
+}
+
+// migrateUsers ensures the users table carries the avatar column, adding it
+// when a persisted database was created by an older schema.
+func migrateUsers(conn *sql.DB) error {
+	has := func(col string) bool {
+		rows, err := conn.Query(`PRAGMA table_info(users)`)
+		if err != nil {
+			return false
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var cid int
+			var name, typeName string
+			var notNull, pk int
+			var dflt any
+			if rows.Scan(&cid, &name, &typeName, &notNull, &dflt, &pk) == nil && name == col {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("avatar_url") {
+		_, err := conn.Exec(`ALTER TABLE users ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''`)
+		return err
+	}
+	return nil
 }
 
 // migrateQuotes ensures the quotes table carries the customer decision columns,
@@ -319,9 +350,9 @@ func (db *DB) ResetDemoData() (map[string]int64, error) {
 
 func (db *DB) CreateUser(u UserRow) error {
 	_, err := db.Exec(
-		`INSERT INTO users (id, name, email, password_hash, role, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, u.Name, u.Email, u.PasswordHash, u.Role, u.Status, u.CreatedAt,
+		`INSERT INTO users (id, name, email, password_hash, role, status, avatar_url, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, u.Name, u.Email, u.PasswordHash, u.Role, u.Status, u.AvatarURL, u.CreatedAt,
 	)
 	return err
 }
@@ -333,12 +364,13 @@ type UserRow struct {
 	PasswordHash string
 	Role         string
 	Status       string
+	AvatarURL    string
 	CreatedAt    string
 }
 
 func (db *DB) UserByEmail(email string) (UserRow, error) {
 	row := db.QueryRow(
-		`SELECT id, name, email, password_hash, role, status, created_at FROM users WHERE email = ?`,
+		`SELECT id, name, email, password_hash, role, status, avatar_url, created_at FROM users WHERE email = ?`,
 		email,
 	)
 	return scanUser(row)
@@ -346,15 +378,20 @@ func (db *DB) UserByEmail(email string) (UserRow, error) {
 
 func (db *DB) UserByID(id string) (UserRow, error) {
 	row := db.QueryRow(
-		`SELECT id, name, email, password_hash, role, status, created_at FROM users WHERE id = ?`,
+		`SELECT id, name, email, password_hash, role, status, avatar_url, created_at FROM users WHERE id = ?`,
 		id,
 	)
 	return scanUser(row)
 }
 
+func (db *DB) UpdateUserAvatar(id, avatarURL string) error {
+	_, err := db.Exec(`UPDATE users SET avatar_url = ? WHERE id = ?`, avatarURL, id)
+	return err
+}
+
 func scanUser(row *sql.Row) (UserRow, error) {
 	var u UserRow
-	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Status, &u.CreatedAt)
+	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Role, &u.Status, &u.AvatarURL, &u.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return UserRow{}, ErrNotFound
 	}

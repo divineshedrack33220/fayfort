@@ -30,6 +30,7 @@ type googleTokenInfo struct {
 	Email         string `json:"email"`
 	EmailVerified any    `json:"email_verified"`
 	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 	Aud           string `json:"aud"`
 }
 
@@ -87,6 +88,7 @@ type googleIDTokenClaims struct {
 	Email         string `json:"email"`
 	EmailVerified any    `json:"email_verified"`
 	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 }
 
 func (claims googleIDTokenClaims) EmailIsVerified() bool {
@@ -119,8 +121,9 @@ func decodeIDTokenPayload(idToken string) (googleIDTokenClaims, error) {
 }
 
 // finishGoogleSignIn converts a verified Google identity into a Fayfort
-// account (linking or provisioning) and issues the session cookie.
-func (s *Server) finishGoogleSignIn(w http.ResponseWriter, email string, emailVerified bool, name string) {
+// account (linking or provisioning) and issues the session cookie. The Google
+// picture, when present, becomes the account's avatar.
+func (s *Server) finishGoogleSignIn(w http.ResponseWriter, email string, emailVerified bool, name string, picture string) {
 	if !emailVerified {
 		writeError(w, http.StatusForbidden, "your Google email is not verified")
 		return
@@ -148,6 +151,7 @@ func (s *Server) finishGoogleSignIn(w http.ResponseWriter, email string, emailVe
 			PasswordHash: randomHash,
 			Role:         "customer",
 			Status:       "ACTIVE",
+			AvatarURL:    picture,
 			CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 		}
 		if err := s.Store.CreateUser(user); err != nil {
@@ -157,6 +161,13 @@ func (s *Server) finishGoogleSignIn(w http.ResponseWriter, email string, emailVe
 	} else if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not look up account")
 		return
+	} else if picture != "" && user.AvatarURL != picture {
+		// Returning customer: keep the avatar fresh from Google.
+		if err := s.Store.UpdateUserAvatar(user.ID, picture); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update account")
+			return
+		}
+		user.AvatarURL = picture
 	}
 
 	if user.Status == "DEACTIVATED" {
@@ -176,7 +187,7 @@ func (s *Server) finishGoogleSignIn(w http.ResponseWriter, email string, emailVe
 	s.setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, sessionPayload{
 		OK: true, Token: token, ExpiresAt: time.Now().Add(sessionTTL).UTC().Format(time.RFC3339),
-		User: map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status},
+		User: map[string]any{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role, "status": user.Status, "avatarUrl": user.AvatarURL},
 	})
 }
 
@@ -192,7 +203,7 @@ func (s *Server) handleGoogleOAuth(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid Google sign-in")
 		return
 	}
-	s.finishGoogleSignIn(w, info.Email, info.EmailIsVerified(), info.Name)
+	s.finishGoogleSignIn(w, info.Email, info.EmailIsVerified(), info.Name, info.Picture)
 }
 
 type googleCodeSignInRequest struct {
@@ -227,7 +238,7 @@ func (s *Server) handleGoogleOAuthCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid Google sign-in")
 		return
 	}
-	s.finishGoogleSignIn(w, claims.Email, claims.EmailIsVerified(), claims.Name)
+	s.finishGoogleSignIn(w, claims.Email, claims.EmailIsVerified(), claims.Name, claims.Picture)
 }
 
 // exchangeGoogleCode redeems an authorization code for an ID token using the

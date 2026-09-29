@@ -632,6 +632,7 @@ func (s *Server) handlePortalProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	profile := map[string]any{
 		"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role,
+		"avatarUrl": user.AvatarURL,
 	}
 	for _, c := range customers {
 		if c.Name == user.Name || c.Email == user.Email || user.Email == "demo@example.com" {
