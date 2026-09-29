@@ -13,10 +13,7 @@ export function SiteLogo({ onDark = false }: { onDark?: boolean }) {
         aria-hidden
         width={28}
         height={28}
-        className={cn(
-          "size-7 shrink-0 rounded-md",
-          onDark ? "ring-2 ring-white/10" : "ring-2 ring-brand-100",
-        )}
+        className="size-7 shrink-0 rounded-md"
       />
       <span
         className={cn(
