@@ -1,32 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { SESSION_COOKIE } from "@/lib/auth";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { useSignInStatus } from "@/components/auth/use-sign-in-status";
 import { cn } from "@/lib/utils";
 
 /**
- * Read document.cookie as an external store so we render without effect
- * cascades and stay compliant with React's rules of hooks lint.
- */
-function useSessionCookie(): string {
-  return React.useSyncExternalStore(
-    () => () => {}, // no external subscription; cookies are read on render
-    () => document.cookie,
-    () => "", // server snapshot — never touches the client document
-  );
-}
-
-/**
- * Header account chip. Since the Go backend session cookie is an opaque
- * token, signed-in state is presence-based here (the server re-validates on
- * every protected render). Marketing pages stay statically prerenderable —
- * no server cookies call.
+ * Header account chip. Since the Go backend session cookie is an opaque,
+ * HttpOnly token (never readable via document.cookie), signed-in state is
+ * probed through /api/backend/me; the server re-validates on every protected
+ * render. Marketing pages stay statically prerenderable — no server cookies
+ * call.
  */
 export function AccountMenu({ className }: { className?: string }) {
-  const cookie = useSessionCookie();
-  const signedIn = cookie.includes(`${SESSION_COOKIE}=`);
+  const signedIn = useSignInStatus();
 
   if (!signedIn) {
     return <GoogleSignInButton className={className} />;

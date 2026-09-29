@@ -1,5 +1,5 @@
 /**
- * Explains why the Google chooser could not open, so the UI can guide the
+ * Explains why Google sign-in could not complete, so the UI can guide the
  * visitor instead of failing silently.
  */
 export interface GsiUnavailable {
@@ -61,11 +61,13 @@ async function pkceChallenge(verifier: string): Promise<string> {
  *
  * Returned true when a flow was launched, or false when no OAuth client id is
  * configured. If the popup can't be opened, `onUnavailable` is called so the
- * UI can guide the visitor.
+ * UI can guide the visitor. `onStatus(working)` reports whether a sign-in is
+ * in flight so the button can show progress instead of silently waiting.
  */
 export function openGoogleSignIn(
   onSuccess: (role: string) => void,
   onUnavailable?: (info: GsiUnavailable) => void,
+  onStatus?: (working: boolean) => void,
 ): boolean {
   const id = clientIdOf();
   if (!id) return false;
@@ -77,12 +79,14 @@ export function openGoogleSignIn(
   // blockers accept it, then navigate it to Google once the URL is built.
   const popup = window.open("", POPUP_NAME, "popup=yes,width=460,height=640");
   if (!popup) {
+    onStatus?.(false);
     unavailableHook?.({
       reason: "popup-blocked",
       origin: window.location.origin,
     });
     return true;
   }
+  onStatus?.(true);
 
   const origin = window.location.origin;
   const nonce = randomUrlSafe(16);
@@ -109,33 +113,42 @@ export function openGoogleSignIn(
     window.removeEventListener("message", onAuthMessage);
     if (data.error) {
       // e.g. access_denied — the visitor cancelled the chooser.
+      onStatus?.(false);
       popup.close();
       return;
     }
     if (!data.code || data.state !== state) {
       // Stale or forged callback — never exchange it.
+      onStatus?.(false);
       popup.close();
       return;
     }
+    window.clearTimeout(timerId);
     popup.close();
-    void completeGoogleSignIn({
-      code: data.code,
-      codeVerifier: verifier,
-      nonce,
-      redirectUri: `${origin}${CALLBACK_PATH}`,
-    });
+    void completeGoogleSignIn(
+      { code: data.code, codeVerifier: verifier, nonce, redirectUri: `${origin}${CALLBACK_PATH}` },
+      origin,
+      onStatus,
+    );
   };
   window.addEventListener("message", onAuthMessage);
-  window.setTimeout(() => {
+  const timerId = window.setTimeout(() => {
     window.removeEventListener("message", onAuthMessage);
     if (!popup.closed) popup.close();
+    onStatus?.(false);
+    unavailableHook?.({
+      reason: "unable-to-retrieve-token",
+      origin,
+    });
   }, POPUP_TIMEOUT_MS);
 
   void (async () => {
     const codeChallenge = await pkceChallenge(verifier);
     if (!codeChallenge) {
       window.removeEventListener("message", onAuthMessage);
+      window.clearTimeout(timerId);
       popup.close();
+      onStatus?.(false);
       unavailableHook?.({
         reason: "crypto-unavailable",
         origin,
@@ -167,14 +180,39 @@ interface GoogleCodeExchangePayload {
 }
 
 /**
+ * The signed-in viewer's role, or null when no backend session exists. Used to
+ * recover when the exchange's response was lost after the session was already
+ * created — the browser retries the /api/me fetch with the (HttpOnly) session
+ * cookie automatically.
+ */
+async function signedInRole(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/backend/me", { cache: "no-store" });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { user?: { role?: string } } | null;
+    return body?.user?.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Exchanges the authorization code for a Fayfort session. The backend runs on
  * Render's free tier, which sleeps after idle and can take roughly a minute to
  * wake — so 5xx / network failures on this first call are retried with
  * backoff (alongside the warm-up ping in {@link openGoogleSignIn}) instead of
- * silently leaving the visitor on the landing page.
+ * silently leaving the visitor on the landing page. Hard errors are not
+ * retried, but a session that was actually created despite the error is still
+ * recovered by checking /api/me, and genuine terminal failures surface through
+ * `onUnavailable` instead of dying silently.
  */
-async function completeGoogleSignIn(payload: GoogleCodeExchangePayload): Promise<void> {
+async function completeGoogleSignIn(
+  payload: GoogleCodeExchangePayload,
+  origin: string,
+  onStatus?: (working: boolean) => void,
+): Promise<void> {
   const maxAttempts = 5;
+  const transientStatuses = new Set([502, 503, 504]);
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await fetch("/api/backend/oauth/google/code", {
@@ -185,10 +223,23 @@ async function completeGoogleSignIn(payload: GoogleCodeExchangePayload): Promise
       if (res.ok) {
         const body = (await res.json()) as { user?: { role?: string } } | null;
         if (body?.user?.role) exchangeHook?.(body.user.role);
+        onStatus?.(false);
         return;
       }
-      if (res.status !== 502 && res.status !== 503 && res.status !== 504) {
-        // A hard error (4xx) will not be fixed by retrying.
+      if (!transientStatuses.has(res.status)) {
+        // A hard error (4xx) won't be fixed by retrying — but the single-use
+        // code may have been consumed in a way that still created a session
+        // (e.g. the backend re-exchanged it after the response was lost).
+        // Recover by asking the backend who we are before telling the visitor
+        // to start over.
+        const role = await signedInRole();
+        if (role) {
+          exchangeHook?.(role);
+          onStatus?.(false);
+          return;
+        }
+        unavailableHook?.({ reason: "unable-to-sign-in", origin });
+        onStatus?.(false);
         return;
       }
     } catch {
@@ -198,6 +249,16 @@ async function completeGoogleSignIn(payload: GoogleCodeExchangePayload): Promise
       await new Promise((resolve) => setTimeout(resolve, 5000 * (attempt + 1)));
     }
   }
+  // The whole retry budget was spent; last chance is a session that got
+  // created anyway (every response lost while the backend was warming up).
+  const role = await signedInRole();
+  if (role) {
+    exchangeHook?.(role);
+    onStatus?.(false);
+    return;
+  }
+  unavailableHook?.({ reason: "unable-to-sign-in", origin });
+  onStatus?.(false);
 }
 
 /**

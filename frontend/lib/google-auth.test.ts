@@ -212,6 +212,107 @@ describe("openGoogleSignIn", () => {
     expect(exchangeCalls()).toHaveLength(2);
   });
 
+  it("reports a busy status for the duration of a sign-in", async () => {
+    const popup = openPopup();
+
+    const onSuccess = vi.fn();
+    const onStatus = vi.fn();
+    openGoogleSignIn(onSuccess, undefined, onStatus);
+
+    expect(onStatus).toHaveBeenLastCalledWith(true);
+
+    await assignedUrlOf(popup);
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      code: "auth-code",
+      state: new URL(
+        popup.location.assign.mock.calls[0][0] as string,
+      ).searchParams.get("state")!,
+    });
+
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledWith("customer"));
+    expect(onStatus).toHaveBeenLastCalledWith(false);
+  });
+
+  it("recovers a session that was created despite a lost exchange response", async () => {
+    const popup = openPopup();
+
+    globalThis.fetch = vi.fn((input: RequestInfo | URL) => {
+      const href = String(input);
+      if (href.includes("/oauth/google/code")) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: async () => ({ error: "invalid Google sign-in" }),
+        });
+      }
+      if (href.includes("/me")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, user: { role: "customer" } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+    }) as unknown as typeof fetch;
+
+    const onSuccess = vi.fn();
+    openGoogleSignIn(onSuccess);
+    const url = await assignedUrlOf(popup);
+
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      code: "auth-code",
+      state: url.searchParams.get("state")!,
+    });
+
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledWith("customer"));
+  });
+
+  it("reports a terminal exchange failure instead of failing silently", async () => {
+    const popup = openPopup();
+
+    globalThis.fetch = vi.fn((input: RequestInfo | URL) => {
+      const href = String(input);
+      if (href.includes("/oauth/google/code")) {
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: async () => ({ error: "invalid Google sign-in" }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) });
+    }) as unknown as typeof fetch;
+
+    const onUnavailable = vi.fn();
+    openGoogleSignIn(() => {}, onUnavailable);
+    const url = await assignedUrlOf(popup);
+
+    postAuthMessage({
+      source: "fayfort-google-auth",
+      code: "auth-code",
+      state: url.searchParams.get("state")!,
+    });
+
+    await vi.waitFor(() =>
+      expect(onUnavailable).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: "unable-to-sign-in" }),
+      ),
+    );
+  });
+
+  it("surfaces a timeout as a recoverable error instead of a silent hang", async () => {
+    openPopup();
+
+    const onUnavailable = vi.fn();
+    openGoogleSignIn(() => {}, onUnavailable);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(onUnavailable).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "unable-to-retrieve-token" }),
+    );
+  });
+
   it("reports a blocked popup through onUnavailable", async () => {
     window.open = vi.fn(() => null) as unknown as typeof window.open;
 

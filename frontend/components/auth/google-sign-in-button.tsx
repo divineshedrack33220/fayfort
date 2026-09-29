@@ -19,11 +19,13 @@ import { SignInUnavailable } from "@/components/auth/sign-in-unavailable";
 export function GoogleSignInButton({ className }: { className?: string }) {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
   const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(null);
+  const [busy, setBusy] = React.useState(false);
 
   const handleClick = () => {
     openGoogleSignIn(
       (role) => window.location.assign(googleDestination(role, "/dashboard")),
       (info) => setUnavailable(info),
+      (working) => setBusy(working),
     );
   };
 
@@ -34,8 +36,14 @@ export function GoogleSignInButton({ className }: { className?: string }) {
           Sign In
         </Link>
       ) : (
-        <button type="button" onClick={handleClick} className={cn(signInClasses, className)}>
-          Sign In
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={busy}
+          aria-busy={busy}
+          className={cn(signInClasses, "disabled:opacity-60", className)}
+        >
+          {busy ? "Signing you in…" : "Sign In"}
         </button>
       )}
       {unavailable && (

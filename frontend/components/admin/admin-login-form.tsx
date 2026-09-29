@@ -52,7 +52,6 @@ export function AdminLoginForm({ next }: AdminLoginFormProps) {
         return;
       }
       router.push(next);
-      router.refresh();
     } catch {
       setError("Something went wrong. Try again.");
     } finally {

@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { SESSION_COOKIE } from "@/lib/auth";
 import { openGoogleSignIn, googleRoleLanding, type GsiUnavailable } from "@/lib/google-auth";
 import { SignInUnavailable } from "@/components/auth/sign-in-unavailable";
+import { useSignInStatus } from "@/components/auth/use-sign-in-status";
 
 /**
  * A link to a customer page that behaves like the header Sign In / Get Started
@@ -22,11 +22,7 @@ export function AuthActionLink({
   className?: string;
   children: React.ReactNode;
 }) {
-  const signedIn = React.useSyncExternalStore(
-    () => () => {},
-    () => document.cookie,
-    () => "",
-  ).includes(`${SESSION_COOKIE}=`);
+  const signedIn = useSignInStatus();
   const [unavailable, setUnavailable] = React.useState<GsiUnavailable | null>(null);
 
   const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
