@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MessageSquare, Paperclip, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { CallLayer, CallStartButtons } from "@/components/ui/call-overlay";
 import { PushNudge } from "@/components/pwa/push-nudge";
 import { useCall } from "@/components/ui/use-call";
@@ -114,10 +113,7 @@ export function Chat({
       // keyboard never buries the header or the input below it.
       if (!active) return;
       const height = window.visualViewport?.height;
-      document.documentElement.style.setProperty(
-        "--app-vh",
-        height ? `${height}px` : "100dvh",
-      );
+      document.documentElement.style.setProperty("--app-vh", height ? `${height}px` : "100dvh");
     };
     syncHeight();
     const vv = window.visualViewport;
@@ -261,47 +257,47 @@ export function Chat({
     // The shell gives Chat a definite-height column on this route, so `flex-1`
     // here resolves to real leftover space: the message list takes it and
     // scrolls, the composer stays pinned, and the document never scrolls.
-    <div className="container-shell flex min-h-0 flex-1 flex-col py-4">
-      <Card className="min-h-0 flex-1 overflow-hidden">
+    // Edge-to-edge on purpose: there is no side padding or card chrome around
+    // an instant-messaging view.
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* On phones the conversation strip sits above the thread, so its row is
             fixed and the thread takes the rest; from `lg` the pair becomes two
             columns of a single row. */}
         {/* The conversation strip is desktop-only: on phones the thread header
             already shows the subject and ref, so the strip is dead vertical
             space (Instagram keeps a phone chat a single full-height column). */}
-        <CardContent className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden p-0 lg:grid-cols-[18rem_minmax(0,1fr)]">
-          <div className="hidden min-h-0 flex-col border-r border-sand-100 lg:flex">
-            <p className="px-5 pt-3 pb-1 text-[10px] font-semibold tracking-widest text-sand-500 uppercase">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] lg:grid-cols-[18rem_minmax(0,1fr)]">
+          <div className="border-sand-100 hidden min-h-0 flex-col border-r lg:flex">
+            <p className="text-sand-500 px-5 pt-3 pb-1 text-[10px] font-semibold tracking-widest uppercase">
               Conversations
             </p>
             <ul className="flex min-h-0 flex-1 gap-1 overflow-x-auto p-2 lg:flex-col lg:overflow-y-auto">
               {thread ? (
                 <li className="shrink-0 lg:w-full">
-                  <div className="flex w-full items-center gap-3 rounded-lg bg-brand-50 px-3 py-2.5 text-left">
+                  <div className="bg-brand-50 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left">
                     <span
                       aria-hidden
-                      className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-sand-100"
+                      className="ring-sand-100 flex size-9 shrink-0 items-center justify-center rounded-lg bg-white ring-1"
                     >
-                      <MessageSquare className="size-5 text-brand-600" />
+                      <MessageSquare className="text-brand-600 size-5" />
                     </span>
                     <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-semibold text-brand-900">
+                      <span className="text-brand-900 truncate text-sm font-semibold">
                         {thread.subject}
                       </span>
-                      <span className="truncate font-mono text-xs text-sand-500">
-                        {thread.ref}
-                      </span>
+                      <span className="text-sand-500 truncate font-mono text-xs">{thread.ref}</span>
                     </span>
                   </div>
                 </li>
               ) : (
-                <li className="p-3 text-sm text-sand-400">Loading conversation…</li>
+                <li className="text-sand-400 p-3 text-sm">Loading conversation…</li>
               )}
             </ul>
           </div>
 
           <div className="flex min-h-0 flex-col">
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-sand-100 px-3 py-2 sm:px-4 sm:py-3">
+            <div className="border-sand-100 flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2 sm:px-4 sm:py-3">
               <div className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
@@ -313,16 +309,18 @@ export function Chat({
                     }
                   }}
                   aria-label="Go back"
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-sand-600 transition-colors hover:bg-sand-100 hover:text-brand-800 lg:hidden"
+                  className="text-sand-600 hover:bg-sand-100 hover:text-brand-800 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors lg:hidden"
                 >
                   <ArrowLeft aria-hidden className="size-5" />
                 </button>
                 <div className="flex min-w-0 flex-col">
-                  <p className="truncate font-display text-sm font-semibold text-brand-900">
+                  <p className="font-display text-brand-900 truncate text-sm font-semibold">
                     {thread?.subject ?? "Fayfort chat"}
                   </p>
-                  <p className="truncate font-mono text-xs text-sand-500">
-                    {thread ? `${thread.ref} · ${STATUS_LABEL[thread.status] ?? thread.status}` : "…"}
+                  <p className="text-sand-500 truncate font-mono text-xs">
+                    {thread
+                      ? `${thread.ref} · ${STATUS_LABEL[thread.status] ?? thread.status}`
+                      : "…"}
                   </p>
                 </div>
               </div>
@@ -342,19 +340,16 @@ export function Chat({
               className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-3 sm:gap-2.5 sm:px-4 sm:py-5"
             >
               {messages.length > 0 ? (
-                <p className="self-center rounded-full bg-sand-100 px-3 py-1 text-[10px] font-semibold tracking-widest text-sand-500 uppercase">
+                <p className="bg-sand-100 text-sand-500 self-center rounded-full px-3 py-1 text-[10px] font-semibold tracking-widest uppercase">
                   Today
                 </p>
               ) : null}
 
               {messages.length === 0 && !replyBusy ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-                  <p className="text-sm font-medium text-sand-600">
-                    No messages yet
-                  </p>
-                  <p className="max-w-xs text-xs leading-relaxed text-sand-400">
-                    Send the first message — the Fayfort team replies on the
-                    same thread.
+                  <p className="text-sand-600 text-sm font-medium">No messages yet</p>
+                  <p className="text-sand-400 max-w-xs text-xs leading-relaxed">
+                    Send the first message — the Fayfort team replies on the same thread.
                   </p>
                 </div>
               ) : null}
@@ -404,7 +399,7 @@ export function Chat({
                 );
               })}
               {typer || replyBusy ? (
-                <div className="flex items-center gap-2 self-start rounded-2xl rounded-bl-sm border border-sand-200 bg-white px-3.5 py-2 shadow-sm">
+                <div className="border-sand-200 flex items-center gap-2 self-start rounded-2xl rounded-bl-sm border bg-white px-3.5 py-2 shadow-sm">
                   {replyBusy ? null : (
                     <span className="text-sand-600 text-xs">{typer} is typing</span>
                   )}
@@ -417,13 +412,16 @@ export function Chat({
               ) : null}
             </div>
 
-            <div className="flex shrink-0 flex-col gap-2 border-t border-sand-100 px-2.5 py-2 sm:gap-3 sm:p-4">
+            <div className="border-sand-100 flex shrink-0 flex-col gap-2 border-t px-2.5 py-2 sm:gap-3 sm:p-4">
               {pending.length > 0 ? (
                 <LightboxGallery
                   items={pending.map((entry, position) => ({
                     url: entry.url,
                     kind: entry.kind,
-                    alt: entry.kind === "video" ? `Video attachment ${position + 1}` : `Image attachment ${position + 1}`,
+                    alt:
+                      entry.kind === "video"
+                        ? `Video attachment ${position + 1}`
+                        : `Image attachment ${position + 1}`,
                   }))}
                   label="Attachments to send"
                   className="flex flex-wrap items-center gap-2"
@@ -438,7 +436,7 @@ export function Chat({
                     return (
                       <>
                         {uploading ? (
-                          <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-sand-950/70 text-[11px] font-semibold text-white tabular-nums">
+                          <span className="bg-sand-950/70 pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg text-[11px] font-semibold text-white tabular-nums">
                             <Progress
                               value={percent}
                               label={`Sending ${entry.file.name}`}
@@ -455,7 +453,7 @@ export function Chat({
                           // control is locked until the batch settles.
                           disabled={uploading}
                           onClick={() => removePending(entry.key)}
-                          className="absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full bg-sand-900 text-white shadow-sm transition-opacity hover:bg-sand-950 disabled:pointer-events-none disabled:opacity-40"
+                          className="bg-sand-900 hover:bg-sand-950 absolute -top-2 -right-2 flex size-5 items-center justify-center rounded-full text-white shadow-sm transition-opacity disabled:pointer-events-none disabled:opacity-40"
                         >
                           <X aria-hidden className="size-3" />
                         </button>
@@ -467,7 +465,7 @@ export function Chat({
 
               <form
                 onSubmit={send}
-                className="flex items-center gap-1 rounded-full border border-sand-200 bg-sand-50 p-1.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20 sm:p-1 sm:pr-1.5"
+                className="border-sand-200 bg-sand-50 focus-within:border-brand-500 focus-within:ring-brand-500/20 flex items-center gap-1 rounded-full border p-1.5 focus-within:ring-2 sm:p-1 sm:pr-1.5"
               >
                 <EmojiPicker onSelect={insertEmoji} className="size-10 sm:size-9" />
                 <button
@@ -486,7 +484,7 @@ export function Chat({
                   aria-label="Message"
                   // Inline, borderless like the staff composer: the pill around
                   // it carries the focus ring.
-                  className="placeholder:text-sand-400 bg-transparent text-sand-900 focus:ring-0 min-w-0 flex-1 rounded-full px-2 py-1.5 text-sm focus:outline-none"
+                  className="placeholder:text-sand-400 text-sand-900 min-w-0 flex-1 rounded-full bg-transparent px-2 py-1.5 text-sm focus:ring-0 focus:outline-none"
                 />
                 <input
                   ref={fileRef}
@@ -510,15 +508,13 @@ export function Chat({
                   className="h-10 rounded-full px-4 sm:h-9 sm:px-3"
                 >
                   <Send aria-hidden className="size-4" />
-                  <span className="hidden sm:inline">
-                    {replyBusy ? "Sending…" : "Send"}
-                  </span>
+                  <span className="hidden sm:inline">{replyBusy ? "Sending…" : "Send"}</span>
                 </Button>
               </form>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Fixed-position ringing card and call window; renders only while a
           call is live, so it adds nothing to the resting layout. */}

@@ -109,7 +109,7 @@ export function EmojiPicker({
         <Smile aria-hidden className="size-5" />
       </button>
       {open ? (
-        <div className="bg-sand-50/60 z-30 absolute right-0 bottom-full mb-2 grid w-72 grid-cols-8 gap-0.5 rounded-xl border border-sand-200 bg-white p-2 shadow-pop">
+        <div className="bg-sand-50/60 border-sand-200 shadow-pop absolute bottom-full left-0 z-30 mb-2 grid max-h-[55vh] w-72 max-w-[calc(100vw-1rem)] grid-cols-8 gap-0.5 overflow-y-auto rounded-xl border bg-white p-2">
           {EMOJIS.map((emoji) => (
             <button
               key={emoji}
@@ -119,7 +119,7 @@ export function EmojiPicker({
                 onSelect(emoji);
                 setOpen(false);
               }}
-              className="hover:bg-sand-100 flex size-8 items-center justify-center rounded-lg text-lg transition-colors"
+              className="hover:bg-sand-100 flex size-8 shrink-0 items-center justify-center rounded-lg text-lg transition-colors"
             >
               {emoji}
             </button>
